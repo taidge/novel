@@ -1,0 +1,21 @@
+[package]
+name = "sapid-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "sapid"
+path = "src/main.rs"
+
+[dependencies]
+sapid-shared = { path = "../shared" }
+sapid-core = { path = "../core" }
+clap = { workspace = true }
+tokio = { workspace = true }
+axum = { workspace = true }
+tower-http = { workspace = true }
+tower-livereload = { workspace = true }
+notify = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }

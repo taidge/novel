@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.title }} | {{ site.title }}{% endblock %}
+{% block description %}{{ page.description }}{% endblock %}
+
+{% block head %}
+{% if page.frontmatter.head %}
+{% for tag in page.frontmatter.head %}
+<{{ tag.tag }}{% for key, val in tag.attrs %} {{ key }}="{{ val }}"{% endfor %}>{% if tag.content %}{{ tag.content }}</{{ tag.tag }}>{% endif %}
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="doc-layout">
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-inner">
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Search docs..." autocomplete="off">
+                <kbd class="search-kbd">/</kbd>
+                <div id="search-results" class="search-results"></div>
+            </div>
+            <nav class="sidebar-nav">
+                {% for item in sidebar %}
+                    {% if item.type == "link" %}
+                        <a href="{{ item.link }}" class="sidebar-link{% if item.link == page.route.route_path %} active{% endif %}">{{ item.text }}</a>
+                    {% elif item.type == "group" %}
+                        <div class="sidebar-group{% if item.collapsed %} collapsed{% endif %}">
+                            <button class="sidebar-group-title" onclick="this.parentElement.classList.toggle('collapsed')">
+                                <span>{{ item.text }}</span>
+                                <span class="sidebar-arrow">›</span>
+                            </button>
+                            <div class="sidebar-group-items">
+                                {% for sub in item.items %}
+                                    {% if sub.type == "link" %}
+                                    <a href="{{ sub.link }}" class="sidebar-link{% if sub.link == page.route.route_path %} active{% endif %}">{{ sub.text }}</a>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% elif item.type == "divider" %}
+                        <hr class="sidebar-divider">
+                    {% endif %}
+                {% endfor %}
+            </nav>
+        </div>
+    </aside>
+
+    <main class="doc-content">
+        <article class="markdown-body">
+            {{ page.content_html|safe }}
+        </article>
+
+        <div class="doc-footer">
+            <div class="doc-footer-meta">
+                {% if edit_url %}
+                <a href="{{ edit_url }}" class="edit-link" target="_blank" rel="noopener">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    {{ edit_link_text }}
+                </a>
+                {% endif %}
+                {% if page.last_updated %}
+                <span class="last-updated">{{ last_updated_text }}: {{ page.last_updated }}</span>
+                {% endif %}
+            </div>
+
+            {% if page.prev_page or page.next_page %}
+            <nav class="prev-next">
+                {% if page.prev_page %}
+                <a href="{{ page.prev_page.link }}" class="prev-next-link prev">
+                    <span class="prev-next-label">Previous</span>
+                    <span class="prev-next-title">{{ page.prev_page.title }}</span>
+                </a>
+                {% else %}
+                <span></span>
+                {% endif %}
+                {% if page.next_page %}
+                <a href="{{ page.next_page.link }}" class="prev-next-link next">
+                    <span class="prev-next-label">Next</span>
+                    <span class="prev-next-title">{{ page.next_page.title }}</span>
+                </a>
+                {% else %}
+                <span></span>
+                {% endif %}
+            </nav>
+            {% endif %}
+        </div>
+    </main>
+
+    {% if toc|length > 0 %}
+    <aside class="toc">
+        <div class="toc-inner">
+            <div class="toc-title">ON THIS PAGE</div>
+            <ul class="toc-list">
+                {% for item in toc %}
+                <li class="toc-item depth-{{ item.depth }}">
+                    <a href="#{{ item.id }}">{{ item.text }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </aside>
+    {% endif %}
+</div>
+{% endblock %}

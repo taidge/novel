@@ -1,0 +1,10 @@
+title = "Sapid"
+description = "A fast static documentation site generator built with Rust"
+root = "docs"
+out_dir = "dist"
+base = "/"
+lang = "en"
+
+[theme]
+dark_mode = true
+footer = "Built with Sapid | MIT License"

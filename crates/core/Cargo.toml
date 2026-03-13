@@ -1,0 +1,22 @@
+[package]
+name = "sapid-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+sapid-shared = { path = "../shared" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+pulldown-cmark = { workspace = true }
+gray_matter = { workspace = true }
+syntect = { workspace = true }
+walkdir = { workspace = true }
+minijinja = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+slug = { workspace = true }
+regex = { workspace = true }
+once_cell = { workspace = true }
+globset = { workspace = true }
+rust-embed = { workspace = true }

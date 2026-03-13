@@ -1,0 +1,6 @@
+target/
+dist/
+
+_*.md
+.tmp*
+.claude
