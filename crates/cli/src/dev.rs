@@ -1,7 +1,8 @@
 use anyhow::Result;
 use axum::Router;
 use notify::{Event, RecursiveMode, Watcher};
-use sapid_shared::SiteConfig;
+use novel_core::Novel;
+use novel_shared::SiteConfig;
 use std::path::Path;
 use tokio::sync::watch;
 use tower_http::services::ServeDir;
@@ -13,7 +14,7 @@ pub async fn run_dev_server(project_root: &Path, port: u16) -> Result<()> {
     let project_root = project_root.to_path_buf();
 
     // Initial build
-    let site = sapid_core::Sapid::load(&project_root)?.build()?;
+    let site = novel_core::DirNovel::load(&project_root)?.build()?;
     site.write_to_default_output()?;
 
     let config = SiteConfig::load(&project_root)?;
@@ -43,7 +44,7 @@ pub async fn run_dev_server(project_root: &Path, port: u16) -> Result<()> {
     watcher.watch(&docs_root, RecursiveMode::Recursive)?;
 
     // Watch config file too
-    let config_path = project_root.join("sapid.toml");
+    let config_path = project_root.join("novel.toml");
     if config_path.exists() {
         watcher.watch(&config_path, RecursiveMode::NonRecursive)?;
     }
@@ -55,7 +56,7 @@ pub async fn run_dev_server(project_root: &Path, port: u16) -> Result<()> {
         while rx.changed().await.is_ok() {
             tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
-            match sapid_core::Sapid::load(&project_root_for_rebuild) {
+            match novel_core::DirNovel::load(&project_root_for_rebuild) {
                 Ok(xp) => match xp.build() {
                     Ok(site) => {
                         if let Err(e) = site.write_to_default_output() {

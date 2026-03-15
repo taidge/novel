@@ -1,10 +1,10 @@
 # Configuration
 
-Sapid is configured via a `sapid.toml` file in your project root. All fields are optional and have sensible defaults.
+Novel is configured via a `novel.toml` file in your project root. All fields are optional and have sensible defaults.
 
 ## Basic Options
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 # Site title displayed in the navbar and page titles
 title = "My Docs"
 
@@ -39,7 +39,7 @@ clean_urls = false
 
 ## Markdown Options
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 [markdown]
 # Show line numbers on all code blocks by default
 show_line_numbers = false
@@ -53,13 +53,13 @@ check_dead_links = false
 
 ## Theme Options
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 [theme]
 # Enable the dark/light mode toggle
 dark_mode = true
 
 # Footer text (HTML is supported)
-footer = "Built with Sapid | MIT License"
+footer = "Built with Novel | MIT License"
 
 # Show git last-updated timestamps on pages
 last_updated = true
@@ -82,7 +82,7 @@ source_link = "https://github.com/user/repo"
 
 By default, navigation is auto-generated from top-level directories in your docs folder. To customise:
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 [[theme.nav]]
 text = "Guide"
 link = "/guide/"
@@ -100,7 +100,7 @@ link = "https://blog.example.com"
 
 By default, sidebar is auto-generated from the directory structure and `_meta.json` files. To customise:
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 # Sidebar for pages under /guide/
 [[theme.sidebar."/guide/"]]
 type = "link"
@@ -115,7 +115,7 @@ link = "/guide/configuration"
 
 ### Social Links
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 [[theme.social_links]]
 icon = "GitHub"
 link = "https://github.com/user/repo"
@@ -129,16 +129,16 @@ link = "https://twitter.com/user"
 
 Display an announcement banner at the top of every page:
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 [theme.banner]
-text = "Sapid v1.0 is released!"
+text = "Novel v1.0 is released!"
 link = "/guide/getting-started"
 dismissible = true
 ```
 
 ## Custom Templates
 
-Sapid checks a `templates/` folder in your project root before falling back to the built-in embedded templates. Override only the files you need; any missing template still uses the default version.
+Novel checks a `templates/` folder in your project root before falling back to the built-in embedded templates. Override only the files you need; any missing template still uses the default version.
 
 ```text
 templates/
@@ -150,7 +150,7 @@ templates/
 
 ## Full Example
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 title = "My Project"
 description = "Documentation for My Project"
 root = "docs"

@@ -1,6 +1,6 @@
 # Routing
 
-Sapid uses file-based routing. Every `.md` file in your `docs/` directory automatically becomes a page.
+Novel uses file-based routing. Every `.md` file in your `docs/` directory automatically becomes a page.
 
 ## Convention
 

@@ -1,6 +1,6 @@
 # Markdown Features
 
-Sapid supports standard Markdown with GitHub Flavored Markdown (GFM) extensions.
+Novel supports standard Markdown with GitHub Flavored Markdown (GFM) extensions.
 
 ## Headings
 
@@ -81,7 +81,7 @@ fn main() {
 ```
 ````
 
-Or enable globally in `sapid.toml`:
+Or enable globally in `novel.toml`:
 
 ```toml
 [markdown]
@@ -204,7 +204,7 @@ Download and install Rust from [rustup.rs](https://rustup.rs).
 ### Create a project
 
 ```bash
-sapid init my-docs
+novel init my-docs
 ```
 
 ### Start writing

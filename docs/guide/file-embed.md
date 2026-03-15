@@ -1,6 +1,6 @@
 # File Embedding
 
-One of Sapid's key features is the ability to embed external source files directly into your documentation.
+One of Novel's key features is the ability to embed external source files directly into your documentation.
 
 ## Basic Usage
 
@@ -49,9 +49,9 @@ Supported formats:
 
 ## Live Example
 
-Here is the Sapid configuration file for this documentation site:
+Here is the Novel configuration file for this documentation site:
 
-```toml file="<root>/sapid.toml"
+```toml file="<root>/novel.toml"
 ```
 
 ## Use Cases

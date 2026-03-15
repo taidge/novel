@@ -1,7 +1,7 @@
 ---
 page_type: home
 hero:
-  name: Sapid
+  name: Novel
   text: Fast Documentation, Rust Powered
   tagline: A static documentation site generator — run standalone or embed as a library in your own server
   actions:
@@ -16,7 +16,7 @@ features:
     details: Built entirely in Rust. Builds complete in milliseconds, not seconds.
     icon: "\u26A1"
   - title: Embeddable
-    details: Use as a CLI or embed as a library. Sapid::new("docs").build() — that's it.
+    details: Use as a CLI or embed as a library. Novel::new("docs").build() — that's it.
     icon: "\U0001F4E6"
   - title: Markdown First
     details: GFM, syntax highlighting, tabs, steps, badges, and container directives out of the box.

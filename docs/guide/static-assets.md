@@ -1,10 +1,10 @@
 # Static Assets
 
-Sapid automatically handles static assets (images, fonts, PDFs, etc.) in your documentation directory.
+Novel automatically handles static assets (images, fonts, PDFs, etc.) in your documentation directory.
 
 ## How It Works
 
-Any non-Markdown file in your `docs/` directory is copied to the output as-is during `sapid build`. The directory structure is preserved.
+Any non-Markdown file in your `docs/` directory is copied to the output as-is during `novel build`. The directory structure is preserved.
 
 ```
 docs/
@@ -42,9 +42,9 @@ Images in Markdown are automatically:
 
 ### Favicon and Logo
 
-Set the favicon and logo in `sapid.toml`:
+Set the favicon and logo in `novel.toml`:
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 icon = "/favicon.ico"
 logo = "/logo.svg"
 ```
@@ -53,7 +53,7 @@ Place these files in your `docs/` directory.
 
 ## Built-in Assets
 
-Sapid generates the following assets automatically in `dist/assets/`:
+Novel generates the following assets automatically in `dist/assets/`:
 
 | File | Description |
 |------|-------------|

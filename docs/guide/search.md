@@ -1,10 +1,10 @@
 # Search
 
-Sapid includes built-in client-side search with no external dependencies or services required.
+Novel includes built-in client-side search with no external dependencies or services required.
 
 ## How It Works
 
-During `sapid build`, a search index (`search-index.json`) is generated from all pages. The search is fully client-side — no server or third-party service needed.
+During `novel build`, a search index (`search-index.json`) is generated from all pages. The search is fully client-side — no server or third-party service needed.
 
 The search index includes:
 - Page titles

@@ -1,12 +1,12 @@
 # Library API
 
-Sapid can run standalone as a CLI, or be embedded as a library in your own Rust application — a web server, a build tool, or anything else.
+Novel can run standalone as a CLI, or be embedded as a library in your own Rust application — a web server, a build tool, or anything else.
 
 ## Add the dependency
 
 ```toml title="Cargo.toml"
 [dependencies]
-sapid-core = { path = "path/to/sapid/crates/sapid-core" }
+novel-core = { path = "path/to/novel/crates/novel-core" }
 ```
 
 ## Quick Start
@@ -14,16 +14,16 @@ sapid-core = { path = "path/to/sapid/crates/sapid-core" }
 Build a docs site and write it to disk in three lines:
 
 ```rust
-let site = sapid_core::Sapid::new("docs").build()?;
+let site = novel_core::Novel::new("docs").build()?;
 site.write_to("dist")?;
 ```
 
-## Loading from `sapid.toml`
+## Loading from `novel.toml`
 
-If you have a project with a `sapid.toml` config file:
+If you have a project with a `novel.toml` config file:
 
 ```rust
-let site = sapid_core::Sapid::load(".")?.build()?;
+let site = novel_core::Novel::load(".")?.build()?;
 site.write_to_default_output()?;
 ```
 
@@ -32,16 +32,16 @@ site.write_to_default_output()?;
 Customise the site programmatically with the builder pattern:
 
 ```rust
-use sapid_core::Sapid;
+use novel_core::Novel;
 
-let site = Sapid::new("docs")
+let site = Novel::new("docs")
     .title("My API Reference")
     .description("Generated docs for my-crate")
     .base("/docs/")
     .site_url("https://example.com")
     .with_theme(|t| {
         t.dark_mode = true;
-        t.footer = Some("Built with Sapid".into());
+        t.footer = Some("Built with Novel".into());
         t.last_updated = true;
     })
     .build()?;
@@ -71,7 +71,7 @@ Calling `.build()` returns a `BuiltSite` which holds all processed pages and can
 ### Access pages
 
 ```rust
-let site = Sapid::new("docs").build()?;
+let site = Novel::new("docs").build()?;
 
 // iterate all pages
 for page in site.pages() {
@@ -87,7 +87,7 @@ if let Some(page) = site.page("/guide/intro") {
 ### Render individual pages
 
 ```rust
-let site = Sapid::new("docs").build()?;
+let site = Novel::new("docs").build()?;
 
 // render one page to a full HTML string
 let page = site.page("/guide/intro").unwrap();
@@ -131,7 +131,7 @@ use axum::{Router, routing::get, extract::Path, response::Html};
 #[tokio::main]
 async fn main() {
     // build once at startup
-    let site = sapid_core::Sapid::new("docs")
+    let site = novel_core::Novel::new("docs")
         .title("My App Docs")
         .build()
         .expect("failed to build docs");
@@ -162,15 +162,15 @@ The `BuiltSite` struct is `Send` but not `Sync` (due to the template engine). Wr
 == CLI (standalone)
 
 ```bash
-sapid build
-sapid dev
-sapid preview
+novel build
+novel dev
+novel preview
 ```
 
 == Library (embedded)
 
 ```rust
-let site = Sapid::new("docs").build()?;
+let site = Novel::new("docs").build()?;
 site.write_to("dist")?;
 
 // or serve directly from memory

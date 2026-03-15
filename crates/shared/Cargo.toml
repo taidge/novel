@@ -1,5 +1,5 @@
 [package]
-name = "sapid-shared"
+name = "novel-shared"
 version.workspace = true
 edition.workspace = true
 

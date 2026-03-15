@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-/// Top-level site configuration, parsed from `sapid.toml`
+/// Top-level site configuration, parsed from `novel.toml`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SiteConfig {
@@ -37,7 +37,7 @@ pub struct SiteConfig {
 impl Default for SiteConfig {
     fn default() -> Self {
         Self {
-            title: "Sapid".to_string(),
+            title: "Novel".to_string(),
             description: "A static documentation site generator".to_string(),
             root: "docs".to_string(),
             logo: None,
@@ -56,7 +56,7 @@ impl Default for SiteConfig {
 impl SiteConfig {
     /// Load configuration from a TOML file
     pub fn load(project_root: &Path) -> anyhow::Result<Self> {
-        let config_path = project_root.join("sapid.toml");
+        let config_path = project_root.join("novel.toml");
         if config_path.exists() {
             let content = std::fs::read_to_string(&config_path)?;
             let config: SiteConfig = toml::from_str(&content)?;

@@ -12,10 +12,10 @@ pub fn create_project(parent_dir: &Path, name: &str) -> Result<()> {
 
     std::fs::create_dir_all(&project_dir)?;
 
-    // sapid.toml
+    // novel.toml
     let config = format!(
         r#"title = "{name}"
-description = "Documentation powered by Sapid"
+description = "Documentation powered by Novel"
 root = "docs"
 out_dir = "dist"
 base = "/"
@@ -25,7 +25,7 @@ lang = "en"
 dark_mode = true
 "#,
     );
-    std::fs::write(project_dir.join("sapid.toml"), config)?;
+    std::fs::write(project_dir.join("novel.toml"), config)?;
 
     // docs/index.md
     let docs_dir = project_dir.join("docs");
@@ -37,7 +37,7 @@ page_type: home
 hero:
   name: {name}
   text: Fast & Simple Documentation
-  tagline: Built with Sapid - a Rust-powered static site generator
+  tagline: Built with Novel - a Rust-powered static site generator
   actions:
     - text: Get Started
       link: /guide/getting-started
@@ -71,7 +71,7 @@ Welcome to your new documentation site!
 ## Installation
 
 ```bash
-cargo install sapid-cli
+cargo install novel-cli
 ```
 
 ## Quick Start
@@ -79,20 +79,20 @@ cargo install sapid-cli
 1. Create a new project:
 
 ```bash
-sapid init my-docs
+novel init my-docs
 cd my-docs
 ```
 
 2. Start the dev server:
 
 ```bash
-sapid dev
+novel dev
 ```
 
 3. Build for production:
 
 ```bash
-sapid build
+novel build
 ```
 
 ## Writing Content
@@ -107,7 +107,7 @@ Use frontmatter at the top of your files to set page metadata.
 
     let markdown_guide = r#"# Markdown Features
 
-Sapid supports standard Markdown with some extensions.
+Novel supports standard Markdown with some extensions.
 
 ## Tables
 
@@ -150,7 +150,7 @@ Hidden content that can be expanded.
 
 ```rust title="hello.rs"
 fn main() {
-    println!("Hello, Sapid!");
+    println!("Hello, Novel!");
 }
 ```
 "#;
@@ -164,7 +164,7 @@ fn main() {
     std::fs::write(project_dir.join(".gitignore"), "dist/\ntarget/\n")?;
 
     info!("Created new project at: {}", project_dir.display());
-    info!("  cd {} && sapid dev", name);
+    info!("  cd {} && novel dev", name);
 
     Ok(())
 }

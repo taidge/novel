@@ -1,16 +1,16 @@
 # Theming
 
-Sapid comes with a clean, responsive theme that supports dark mode out of the box.
+Novel comes with a clean, responsive theme that supports dark mode out of the box.
 
 ## Dark Mode
 
 Dark mode is enabled by default. Users can toggle between light and dark mode using the button in the navbar.
 
-The preference is saved to `localStorage` and persisted across page loads. If no preference is saved, Sapid follows the system preference (`prefers-color-scheme`).
+The preference is saved to `localStorage` and persisted across page loads. If no preference is saved, Novel follows the system preference (`prefers-color-scheme`).
 
 To disable the dark mode toggle:
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 [theme]
 dark_mode = false
 ```
@@ -19,9 +19,9 @@ dark_mode = false
 
 Add a footer to every page:
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 [theme]
-footer = "Copyright 2025 My Project | Built with Sapid"
+footer = "Copyright 2025 My Project | Built with Novel"
 ```
 
 HTML is supported in the footer text.
@@ -30,7 +30,7 @@ HTML is supported in the footer text.
 
 Show an "Edit this page" link on every doc page that links to your repository:
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 [theme]
 edit_link = "https://github.com/user/repo/edit/main/docs/"
 edit_link_text = "Edit this page on GitHub"
@@ -42,7 +42,7 @@ The page's relative file path is appended automatically.
 
 Show the last git commit date for each page:
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 [theme]
 last_updated = true
 last_updated_text = "Last updated"
@@ -54,7 +54,7 @@ This uses `git log` to determine the date, so git must be available in the build
 
 Display a GitHub (or other) repository link in the navbar:
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 [theme]
 source_link = "https://github.com/user/repo"
 ```
@@ -63,7 +63,7 @@ source_link = "https://github.com/user/repo"
 
 Show an announcement banner at the top of every page:
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 [theme.banner]
 text = "We just released v2.0!"
 link = "/guide/changelog"

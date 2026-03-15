@@ -4,12 +4,12 @@ function toggleTheme() {
     const current = html.getAttribute('data-theme');
     const next = current === 'dark' ? 'light' : 'dark';
     html.setAttribute('data-theme', next);
-    localStorage.setItem('sapid-theme', next);
+    localStorage.setItem('novel-theme', next);
 }
 
 // Restore saved theme
 (function() {
-    const saved = localStorage.getItem('sapid-theme');
+    const saved = localStorage.getItem('novel-theme');
     if (saved) {
         document.documentElement.setAttribute('data-theme', saved);
     } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -22,11 +22,11 @@ function dismissBanner() {
     const banner = document.getElementById('site-banner');
     if (banner) {
         banner.classList.add('dismissed');
-        sessionStorage.setItem('sapid-banner-dismissed', '1');
+        sessionStorage.setItem('novel-banner-dismissed', '1');
     }
 }
 (function() {
-    if (sessionStorage.getItem('sapid-banner-dismissed') === '1') {
+    if (sessionStorage.getItem('novel-banner-dismissed') === '1') {
         const banner = document.getElementById('site-banner');
         if (banner) banner.classList.add('dismissed');
     }

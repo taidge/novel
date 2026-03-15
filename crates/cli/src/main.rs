@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use novel_core::Novel;
 use std::path::PathBuf;
 use tracing::info;
 
@@ -8,7 +9,7 @@ mod init;
 
 #[derive(Parser)]
 #[command(
-    name = "sapid",
+    name = "novel",
     version,
     about = "A fast static documentation site generator"
 )]
@@ -62,12 +63,12 @@ async fn main() -> Result<()> {
         }
         Commands::Build => {
             info!("Building site...");
-            let site = sapid_core::Sapid::load(&project_root)?.build()?;
+            let site = novel_core::DirNovel::load(&project_root)?.build()?;
             site.write_to_default_output()?;
         }
         Commands::Preview { port } => {
             info!("Previewing built site on http://localhost:{}", port);
-            let config = sapid_shared::SiteConfig::load(&project_root)?;
+            let config = novel_shared::SiteConfig::load(&project_root)?;
             let output_dir = config.output_dir(&project_root);
             dev::serve_static(&output_dir, port).await?;
         }

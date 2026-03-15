@@ -2,7 +2,7 @@ use anyhow::Result;
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag, TagEnd, html};
-use sapid_shared::{FrontMatter, PageData, RouteMeta, TocItem};
+use novel_shared::{FrontMatter, PageData, RouteMeta, TocItem};
 use slug::slugify;
 use std::path::Path;
 
@@ -12,14 +12,14 @@ use super::highlight::highlight_code;
 
 /// Main markdown processing engine
 pub struct MarkdownProcessor {
-    project_root: std::path::PathBuf,
+    project_root: Option<std::path::PathBuf>,
     show_line_numbers: bool,
 }
 
 impl MarkdownProcessor {
-    pub fn new(project_root: &Path) -> Self {
+    pub fn new(project_root: Option<&Path>) -> Self {
         Self {
-            project_root: project_root.to_path_buf(),
+            project_root: project_root.map(|p| p.to_path_buf()),
             show_line_numbers: false,
         }
     }
@@ -143,15 +143,17 @@ impl MarkdownProcessor {
                 Event::End(TagEnd::CodeBlock) => {
                     in_code_block = false;
 
-                    // Check for file embed
-                    if let Some(embed) = parse_file_embed(&code_info) {
-                        match read_embedded_file(&embed, file_dir, &self.project_root) {
-                            Ok(file_content) => {
-                                code_content = file_content;
-                            }
-                            Err(e) => {
-                                tracing::warn!("Failed to embed file: {}", e);
-                                code_content = format!("Error embedding file: {}", e);
+                    // Check for file embed (requires project_root)
+                    if let Some(ref project_root) = self.project_root {
+                        if let Some(embed) = parse_file_embed(&code_info) {
+                            match read_embedded_file(&embed, file_dir, project_root) {
+                                Ok(file_content) => {
+                                    code_content = file_content;
+                                }
+                                Err(e) => {
+                                    tracing::warn!("Failed to embed file: {}", e);
+                                    code_content = format!("Error embedding file: {}", e);
+                                }
                             }
                         }
                     }

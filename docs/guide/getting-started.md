@@ -1,17 +1,17 @@
 # Getting Started
 
-Get up and running with Sapid in minutes.
+Get up and running with Novel in minutes.
 
 ## Installation
 
 ```bash
-cargo install sapid-cli
+cargo install novel-cli
 ```
 
 ## Create a New Project
 
 ```bash
-sapid init my-docs
+novel init my-docs
 cd my-docs
 ```
 
@@ -25,7 +25,7 @@ my-docs/
 │       ├── _meta.json    # Sidebar ordering
 │       ├── getting-started.md
 │       └── markdown.md
-├── sapid.toml            # Configuration
+├── novel.toml            # Configuration
 └── .gitignore
 ```
 
@@ -34,7 +34,7 @@ my-docs/
 Start the dev server with live reload:
 
 ```bash
-sapid dev
+novel dev
 ```
 
 Open `http://localhost:3000` in your browser. Changes to `.md`, `.json`, or `.toml` files trigger an automatic rebuild.
@@ -42,7 +42,7 @@ Open `http://localhost:3000` in your browser. Changes to `.md`, `.json`, or `.to
 ## Build for Production
 
 ```bash
-sapid build
+novel build
 ```
 
 Output goes to the `dist/` directory. Serve it with any static file server.
@@ -50,16 +50,16 @@ Output goes to the `dist/` directory. Serve it with any static file server.
 ## Preview
 
 ```bash
-sapid preview
+novel preview
 ```
 
 Serves the built output locally on port 4000.
 
 ## Configuration
 
-Create `sapid.toml` in your project root:
+Create `novel.toml` in your project root:
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 title = "My Docs"
 description = "My documentation site"
 root = "docs"
@@ -74,14 +74,14 @@ check_dead_links = false    # validate internal links at build time
 
 [theme]
 dark_mode = true
-footer = "Built with Sapid"
+footer = "Built with Novel"
 last_updated = true         # show git timestamps
 edit_link = "https://github.com/user/repo/edit/main/docs/"
 source_link = "https://github.com/user/repo"
 
 # announcement banner
 [theme.banner]
-text = "Sapid v0.2 is out!"
+text = "Novel v0.2 is out!"
 link = "/guide/getting-started"
 dismissible = true
 ```
@@ -92,4 +92,4 @@ Most fields have sensible defaults. You only need to configure what you want to 
 
 ## Using as a Library
 
-Sapid can also be embedded into your own Rust application — see the [Library API](/guide/library) guide.
+Novel can also be embedded into your own Rust application — see the [Library API](/guide/library) guide.

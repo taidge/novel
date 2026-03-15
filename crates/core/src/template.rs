@@ -1,8 +1,8 @@
 use anyhow::Result;
 use minijinja::{Environment, Error as MiniJinjaError, ErrorKind, context};
 use rust_embed::Embed;
-use sapid_shared::config::SiteConfig;
-use sapid_shared::{NavItem, PageData, SidebarItem};
+use novel_shared::config::SiteConfig;
+use novel_shared::{NavItem, PageData, SidebarItem};
 use std::path::{Component, Path, PathBuf};
 
 const REQUIRED_TEMPLATES: [&str; 4] = ["base.html", "doc.html", "home.html", "404.html"];
@@ -73,13 +73,15 @@ pub struct TemplateEngine {
 }
 
 impl TemplateEngine {
-    pub fn new(project_root: &Path) -> Result<Self> {
+    pub fn new(project_root: Option<&Path>) -> Result<Self> {
         let mut env = Environment::new();
-        let template_dir = project_root.join("templates");
+        let template_dir = project_root.map(|p| p.join("templates"));
 
         env.set_loader(move |name| {
-            if let Some(template) = load_template_from_dir(&template_dir, name)? {
-                return Ok(Some(template));
+            if let Some(ref dir) = template_dir {
+                if let Some(template) = load_template_from_dir(dir, name)? {
+                    return Ok(Some(template));
+                }
             }
 
             load_embedded_template(name)
@@ -176,7 +178,7 @@ mod tests {
                 .expect("system clock should be after unix epoch")
                 .as_nanos();
             let root = std::env::temp_dir().join(format!(
-                "sapid-template-test-{}-{unique}",
+                "novel-template-test-{}-{unique}",
                 std::process::id()
             ));
             fs::create_dir_all(&root).expect("failed to create test project root");
@@ -207,7 +209,7 @@ mod tests {
         let project = TestProject::new();
         project.write_template("404.html", "custom 404");
 
-        let engine = TemplateEngine::new(project.root()).expect("template engine should load");
+        let engine = TemplateEngine::new(Some(project.root())).expect("template engine should load");
         let rendered = engine
             .render_404(&SiteConfig::default(), &[])
             .expect("404 page should render");
@@ -223,7 +225,7 @@ mod tests {
             "<html><body>CUSTOM_BASE{% block content %}{% endblock %}</body></html>",
         );
 
-        let engine = TemplateEngine::new(project.root()).expect("template engine should load");
+        let engine = TemplateEngine::new(Some(project.root())).expect("template engine should load");
         let rendered = engine
             .render_404(&SiteConfig::default(), &[])
             .expect("404 page should render");

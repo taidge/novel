@@ -1,14 +1,15 @@
 use anyhow::Result;
-use sapid_shared::config::SiteConfig;
-use sapid_shared::{NavItem, PageData, PageLink, PageType, SidebarItem};
+use novel_shared::config::SiteConfig;
+use novel_shared::{NavItem, PageData, PageLink, PageType, SidebarItem};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::process::Command;
 use tracing::info;
 
 use crate::markdown::{MarkdownProcessor, collect_internal_links};
-use crate::route::scan_routes;
+use crate::routing::scan_routes;
 use crate::sidebar::{generate_nav, generate_sidebar};
+use crate::source::DocsSource;
 
 /// Internal build result
 pub(crate) struct BuildResult {
@@ -17,29 +18,39 @@ pub(crate) struct BuildResult {
     pub sidebar: HashMap<String, Vec<SidebarItem>>,
 }
 
-/// Build all documentation pages (called by `Sapid::build()`)
-pub(crate) fn build_pages(project_root: &Path, config: &SiteConfig) -> Result<BuildResult> {
-    let docs_root = config.docs_root(project_root);
+/// Build all documentation pages (called by `Novel::build()` implementations).
+///
+/// `project_root` is `Some` for filesystem-backed builds (enables file-embed
+/// resolution) and `None` for embed-backed builds.
+pub(crate) fn build_pages(
+    source: &dyn DocsSource,
+    config: &SiteConfig,
+    project_root: Option<&Path>,
+) -> Result<BuildResult> {
     let processor =
         MarkdownProcessor::new(project_root).with_line_numbers(config.markdown.show_line_numbers);
 
-    info!("Scanning routes from: {}", docs_root.display());
-    let routes = scan_routes(&docs_root)?;
+    info!("Scanning routes...");
+    let routes = scan_routes(source)?;
     info!("Found {} routes", routes.len());
 
     let mut pages = Vec::new();
     for route in routes {
-        let file_path = Path::new(&route.absolute_path).to_path_buf();
         info!("Processing: {}", route.relative_path);
-        match processor.process_file(&file_path, route) {
-            Ok(mut page) => {
-                if config.theme.last_updated {
-                    page.last_updated = get_git_last_updated(&file_path);
-                }
+        let content = match source.read_to_string(&route.relative_path) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!("Failed to read {}: {}", route.relative_path, e);
+                continue;
+            }
+        };
+        let relative_path = route.relative_path.clone();
+        match processor.process_string(&content, Path::new(&relative_path), route) {
+            Ok(page) => {
                 pages.push(page);
             }
             Err(e) => {
-                tracing::warn!("Failed to process {}: {}", file_path.display(), e);
+                tracing::warn!("Failed to process {}: {}", relative_path, e);
             }
         }
     }
@@ -51,13 +62,13 @@ pub(crate) fn build_pages(project_root: &Path, config: &SiteConfig) -> Result<Bu
     }
 
     let nav = if config.theme.nav.is_empty() {
-        generate_nav(&docs_root, &pages)
+        generate_nav(&pages)
     } else {
         config.theme.nav.clone()
     };
 
     let sidebar = if config.theme.sidebar.is_empty() {
-        generate_sidebar(&docs_root, &pages)?
+        generate_sidebar(source, &pages)?
     } else {
         config.theme.sidebar.clone()
     };
@@ -82,33 +93,6 @@ pub(crate) fn route_to_file_path(output_dir: &Path, route_path: &str) -> std::pa
         let trimmed = route_path.trim_matches('/');
         output_dir.join(trimmed).join("index.html")
     }
-}
-
-/// Copy non-markdown assets from docs to output.
-pub(crate) fn copy_static_assets(docs_root: &Path, output_dir: &Path) -> Result<()> {
-    for entry in walkdir::WalkDir::new(docs_root)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        if ext == "md" {
-            continue;
-        }
-        if path.file_name().map(|n| n == "_meta.json").unwrap_or(false) {
-            continue;
-        }
-        let relative = path.strip_prefix(docs_root)?;
-        let dest = output_dir.join(relative);
-        if let Some(parent) = dest.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        std::fs::copy(path, dest)?;
-    }
-    Ok(())
 }
 
 /// Generate sitemap XML string.
@@ -262,7 +246,7 @@ fn check_dead_links(pages: &[PageData]) {
     }
 }
 
-fn get_git_last_updated(file_path: &Path) -> Option<String> {
+pub(crate) fn get_git_last_updated(file_path: &Path) -> Option<String> {
     let output = Command::new("git")
         .args(["log", "-1", "--format=%Y-%m-%d", "--"])
         .arg(file_path)

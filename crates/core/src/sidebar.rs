@@ -1,8 +1,9 @@
 use anyhow::Result;
-use sapid_shared::{NavItem, PageData, SidebarItem};
+use novel_shared::{NavItem, PageData, SidebarItem};
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::path::Path;
+
+use crate::source::DocsSource;
 
 /// Metadata entry in _meta.json files
 #[derive(Debug, Clone, Deserialize)]
@@ -24,7 +25,7 @@ pub enum MetaEntry {
 
 /// Auto-generate sidebar from directory structure and _meta.json files
 pub fn generate_sidebar(
-    docs_root: &Path,
+    source: &dyn DocsSource,
     pages: &[PageData],
 ) -> Result<HashMap<String, Vec<SidebarItem>>> {
     let mut sidebar_map: HashMap<String, Vec<SidebarItem>> = HashMap::new();
@@ -40,11 +41,12 @@ pub fn generate_sidebar(
     }
 
     for (dir, dir_page_list) in &dir_pages {
-        let meta_path = docs_root.join(dir).join("_meta.json");
+        let meta_path = format!("{}/_meta.json", dir);
         let prefix = format!("/{}", dir);
 
-        let items = if meta_path.exists() {
-            load_sidebar_from_meta(&meta_path, &prefix, dir_page_list)?
+        let items = if source.exists(&meta_path) {
+            let content = source.read_to_string(&meta_path)?;
+            load_sidebar_from_content(&content, &prefix, dir_page_list)?
         } else {
             auto_generate_sidebar_items(&prefix, dir_page_list)
         };
@@ -55,14 +57,13 @@ pub fn generate_sidebar(
     Ok(sidebar_map)
 }
 
-/// Load sidebar configuration from _meta.json
-fn load_sidebar_from_meta(
-    meta_path: &Path,
+/// Load sidebar configuration from _meta.json content
+fn load_sidebar_from_content(
+    content: &str,
     prefix: &str,
     pages: &[&PageData],
 ) -> Result<Vec<SidebarItem>> {
-    let content = std::fs::read_to_string(meta_path)?;
-    let entries: Vec<MetaEntry> = serde_json::from_str(&content)?;
+    let entries: Vec<MetaEntry> = serde_json::from_str(content)?;
 
     let mut items = Vec::new();
     for entry in entries {
@@ -143,7 +144,7 @@ fn auto_generate_sidebar_items(prefix: &str, pages: &[&PageData]) -> Vec<Sidebar
 }
 
 /// Auto-generate navigation from top-level directories
-pub fn generate_nav(_docs_root: &Path, pages: &[PageData]) -> Vec<NavItem> {
+pub fn generate_nav(pages: &[PageData]) -> Vec<NavItem> {
     let mut dirs: Vec<String> = Vec::new();
 
     for page in pages {

@@ -1,6 +1,6 @@
 # Deployment
 
-After running `sapid build`, the `dist/` directory contains a fully static site that can be deployed anywhere.
+After running `novel build`, the `dist/` directory contains a fully static site that can be deployed anywhere.
 
 ## Netlify
 
@@ -9,7 +9,7 @@ After running `sapid build`, the `dist/` directory contains a fully static site 
 1. Push your project to a Git repository (GitHub, GitLab, or Bitbucket).
 2. Log in to [Netlify](https://app.netlify.com) and click **Add new site** > **Import an existing project**.
 3. Select your repository and configure:
-   - **Build command**: `sapid build`
+   - **Build command**: `novel build`
    - **Publish directory**: `dist`
 4. Click **Deploy site**.
 
@@ -24,7 +24,7 @@ Install the Netlify CLI and deploy manually:
 npm install -g netlify-cli
 
 # Build the site
-sapid build
+novel build
 
 # Deploy to Netlify
 netlify deploy --prod --dir dist
@@ -36,7 +36,7 @@ Create a `netlify.toml` in your project root for persistent config:
 
 ```toml title="netlify.toml"
 [build]
-  command = "sapid build"
+  command = "novel build"
   publish = "dist"
 
 # SPA-style fallback for clean URLs
@@ -47,11 +47,11 @@ Create a `netlify.toml` in your project root for persistent config:
 ```
 
 ::: tip
-If Sapid is not installed on the Netlify build environment, add a build script that installs it first:
+If Novel is not installed on the Netlify build environment, add a build script that installs it first:
 
 ```toml title="netlify.toml"
 [build]
-  command = "cargo install sapid-cli && sapid build"
+  command = "cargo install novel-cli && novel build"
   publish = "dist"
 ```
 :::
@@ -86,11 +86,11 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Sapid
-        run: cargo install sapid-cli
+      - name: Install Novel
+        run: cargo install novel-cli
 
       - name: Build
-        run: sapid build
+        run: novel build
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -106,7 +106,7 @@ jobs:
 ```
 
 ::: warning
-If your site is deployed to a subpath (e.g. `https://user.github.io/repo/`), set the `base` option in `sapid.toml`:
+If your site is deployed to a subpath (e.g. `https://user.github.io/repo/`), set the `base` option in `novel.toml`:
 
 ```toml
 base = "/repo/"
@@ -118,7 +118,7 @@ base = "/repo/"
 1. Push your project to a Git repository.
 2. Import the project on [Vercel](https://vercel.com).
 3. Configure the build settings:
-   - **Build command**: `cargo install sapid-cli && sapid build`
+   - **Build command**: `cargo install novel-cli && novel build`
    - **Output directory**: `dist`
 4. Deploy.
 
@@ -126,7 +126,7 @@ Or use the Vercel CLI:
 
 ```bash
 npm install -g vercel
-sapid build
+novel build
 cd dist && vercel --prod
 ```
 
@@ -135,17 +135,17 @@ cd dist && vercel --prod
 1. Log in to the [Cloudflare dashboard](https://dash.cloudflare.com) and go to **Workers & Pages**.
 2. Click **Create application** > **Pages** > **Connect to Git**.
 3. Select your repository and configure:
-   - **Build command**: `cargo install sapid-cli && sapid build`
+   - **Build command**: `cargo install novel-cli && novel build`
    - **Build output directory**: `dist`
 4. Deploy.
 
 ## Any Static Host
 
-Since `sapid build` outputs plain HTML, CSS, and JS files, you can deploy to any static file host:
+Since `novel build` outputs plain HTML, CSS, and JS files, you can deploy to any static file host:
 
 ```bash
 # Build the site
-sapid build
+novel build
 
 # Upload the dist/ directory to your server
 rsync -avz dist/ user@server:/var/www/docs/
@@ -163,7 +163,7 @@ Serve the built site with a lightweight Nginx container:
 FROM rust:latest AS builder
 WORKDIR /app
 COPY . .
-RUN cargo install sapid-cli && sapid build
+RUN cargo install novel-cli && novel build
 
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
@@ -181,7 +181,7 @@ docker run -p 8080:80 my-docs
 
 When deploying to a subpath (e.g. `https://example.com/docs/`), configure the `base` option:
 
-```toml title="sapid.toml"
+```toml title="novel.toml"
 base = "/docs/"
 ```
 

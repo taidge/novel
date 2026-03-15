@@ -1,15 +1,15 @@
 [package]
-name = "sapid-cli"
+name = "novel-cli"
 version.workspace = true
 edition.workspace = true
 
 [[bin]]
-name = "sapid"
+name = "novel"
 path = "src/main.rs"
 
 [dependencies]
-sapid-shared = { path = "../shared" }
-sapid-core = { path = "../core" }
+novel-shared = { path = "../shared" }
+novel-core = { path = "../core" }
 clap = { workspace = true }
 tokio = { workspace = true }
 axum = { workspace = true }

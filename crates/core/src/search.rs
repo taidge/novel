@@ -1,4 +1,4 @@
-use sapid_shared::{PageData, SearchIndexEntry};
+use novel_shared::{PageData, SearchIndexEntry};
 
 /// Generate search index from all pages
 pub fn generate_search_index(pages: &[PageData]) -> Vec<SearchIndexEntry> {

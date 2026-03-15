@@ -779,6 +779,55 @@ dependencies = [
 ]
 
 [[package]]
+name = "novel-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "clap",
+ "notify",
+ "novel-core",
+ "novel-shared",
+ "tokio",
+ "tower-http",
+ "tower-livereload",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "novel-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "globset",
+ "gray_matter",
+ "minijinja",
+ "novel-shared",
+ "once_cell",
+ "pulldown-cmark",
+ "regex",
+ "rust-embed",
+ "serde",
+ "serde_json",
+ "slug",
+ "syntect",
+ "toml",
+ "tracing",
+ "walkdir",
+]
+
+[[package]]
+name = "novel-shared"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
 name = "nu-ansi-term"
 version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1030,55 +1079,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
-]
-
-[[package]]
-name = "sapid-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "clap",
- "notify",
- "sapid-core",
- "sapid-shared",
- "tokio",
- "tower-http",
- "tower-livereload",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "sapid-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "globset",
- "gray_matter",
- "minijinja",
- "once_cell",
- "pulldown-cmark",
- "regex",
- "rust-embed",
- "sapid-shared",
- "serde",
- "serde_json",
- "slug",
- "syntect",
- "toml",
- "tracing",
- "walkdir",
-]
-
-[[package]]
-name = "sapid-shared"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "serde",
- "serde_json",
- "toml",
 ]
 
 [[package]]
