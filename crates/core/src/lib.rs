@@ -17,7 +17,7 @@ use tracing::info;
 
 use builder::{build_pages, get_git_last_updated, route_to_file_path};
 use search::generate_search_index;
-use source::{DocsSource, DirSource, EmbedSource};
+use source::{DirSource, DocsSource, EmbedSource};
 use template::TemplateEngine;
 
 /// Static asset contents

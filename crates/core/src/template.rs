@@ -1,8 +1,8 @@
 use anyhow::Result;
 use minijinja::{Environment, Error as MiniJinjaError, ErrorKind, context};
-use rust_embed::Embed;
 use novel_shared::config::SiteConfig;
 use novel_shared::{NavItem, PageData, SidebarItem};
+use rust_embed::Embed;
 use std::path::{Component, Path, PathBuf};
 
 const REQUIRED_TEMPLATES: [&str; 4] = ["base.html", "doc.html", "home.html", "404.html"];
@@ -209,7 +209,8 @@ mod tests {
         let project = TestProject::new();
         project.write_template("404.html", "custom 404");
 
-        let engine = TemplateEngine::new(Some(project.root())).expect("template engine should load");
+        let engine =
+            TemplateEngine::new(Some(project.root())).expect("template engine should load");
         let rendered = engine
             .render_404(&SiteConfig::default(), &[])
             .expect("404 page should render");
@@ -225,7 +226,8 @@ mod tests {
             "<html><body>CUSTOM_BASE{% block content %}{% endblock %}</body></html>",
         );
 
-        let engine = TemplateEngine::new(Some(project.root())).expect("template engine should load");
+        let engine =
+            TemplateEngine::new(Some(project.root())).expect("template engine should load");
         let rendered = engine
             .render_404(&SiteConfig::default(), &[])
             .expect("404 page should render");

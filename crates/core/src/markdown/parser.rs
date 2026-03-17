@@ -1,8 +1,8 @@
 use anyhow::Result;
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
-use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag, TagEnd, html};
 use novel_shared::{FrontMatter, PageData, RouteMeta, TocItem};
+use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag, TagEnd, html};
 use slug::slugify;
 use std::path::Path;
 
