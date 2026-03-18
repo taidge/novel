@@ -93,7 +93,7 @@ pub async fn run_dev_server(project_root: &Path, port: u16) -> Result<()> {
         if let Ok(event) = res {
             let dominated = event.paths.iter().any(|p| {
                 let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
-                ext == "md" || ext == "json" || ext == "toml"
+                ext == "md" || ext == "json" || ext == "toml" || ext == "kdl"
             });
             if dominated {
                 info!("File changed, rebuilding...");
@@ -104,9 +104,8 @@ pub async fn run_dev_server(project_root: &Path, port: u16) -> Result<()> {
 
     watcher.watch(&docs_root, RecursiveMode::Recursive)?;
 
-    // Watch config file too
-    let config_path = project_root.join("novel.toml");
-    if config_path.exists() {
+    // Watch config file (KDL or TOML)
+    if let Some(config_path) = SiteConfig::config_path(&project_root) {
         watcher.watch(&config_path, RecursiveMode::NonRecursive)?;
     }
 

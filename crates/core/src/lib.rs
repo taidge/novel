@@ -57,7 +57,7 @@ pub trait Novel {
 ///
 /// # Usage
 ///
-/// **Standalone (with `novel.toml`)**
+/// **Standalone (with `novel.toml` or `novel.kdl`)**
 /// ```no_run
 /// use novel_core::{Novel, DirNovel};
 /// let site = DirNovel::load(".")?.build()?;
@@ -105,7 +105,7 @@ impl DirNovel {
         }
     }
 
-    /// Load from a project root that contains `novel.toml`.
+    /// Load from a project root that contains `novel.toml` or `novel.kdl`.
     pub fn load(project_root: impl AsRef<Path>) -> Result<Self> {
         let project_root = project_root.as_ref().to_path_buf();
         let config = SiteConfig::load(&project_root)?;

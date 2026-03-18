@@ -23,8 +23,8 @@ pub trait Plugin: Send + Sync {
     /// Called before the build starts — mutate the site config if needed.
     fn on_config(&self, _config: &mut SiteConfig) {}
 
-    /// Configure the plugin from the `[plugins.<name>]` table in novel.toml.
-    fn configure(&mut self, _value: Option<&toml::Value>) {}
+    /// Configure the plugin from the `[plugins.<name>]` section in config.
+    fn configure(&mut self, _value: Option<&serde_json::Value>) {}
 
     /// Called before any pages are processed.
     fn on_pre_build(&self, _config: &SiteConfig) {}

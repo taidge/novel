@@ -14,7 +14,6 @@ salvo = { workspace = true, optional = true }
 novel-shared = { path = "../shared" }
 serde = { workspace = true }
 serde_json = { workspace = true }
-toml = { workspace = true }
 pulldown-cmark = { workspace = true }
 gray_matter = { workspace = true }
 syntect = { workspace = true }

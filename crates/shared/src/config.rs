@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-/// Top-level site configuration, parsed from `novel.toml`
+/// Top-level site configuration, parsed from `novel.toml` or `novel.kdl`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SiteConfig {
@@ -34,7 +34,7 @@ pub struct SiteConfig {
     pub markdown: MarkdownConfig,
     /// Per-plugin configuration (keyed by plugin name)
     #[serde(default)]
-    pub plugins: HashMap<String, toml::Value>,
+    pub plugins: HashMap<String, serde_json::Value>,
     /// Global redirects: old path -> new path
     #[serde(default)]
     pub redirects: HashMap<String, String>,
@@ -74,16 +74,66 @@ impl Default for SiteConfig {
 }
 
 impl SiteConfig {
-    /// Load configuration from a TOML file
+    /// Load configuration from `novel.toml` or `novel.kdl`.
+    ///
+    /// If both files exist, `novel.kdl` takes precedence.
+    /// Falls back to defaults when neither file is present.
     pub fn load(project_root: &Path) -> anyhow::Result<Self> {
-        let config_path = project_root.join("novel.toml");
-        if config_path.exists() {
-            let content = std::fs::read_to_string(&config_path)?;
-            let config: SiteConfig = toml::from_str(&content)?;
-            Ok(config)
+        let kdl_path = project_root.join("novel.kdl");
+        let toml_path = project_root.join("novel.toml");
+
+        if kdl_path.exists() {
+            let content = std::fs::read_to_string(&kdl_path)?;
+            Self::from_kdl(&content)
+        } else if toml_path.exists() {
+            let content = std::fs::read_to_string(&toml_path)?;
+            Self::from_toml(&content)
         } else {
             Ok(Self::default())
         }
+    }
+
+    /// Parse from a TOML string.
+    pub fn from_toml(content: &str) -> anyhow::Result<Self> {
+        let config: SiteConfig = toml::from_str(content)?;
+        Ok(config)
+    }
+
+    /// Parse from a KDL string.
+    pub fn from_kdl(content: &str) -> anyhow::Result<Self> {
+        let doc = kdl::KdlDocument::parse(content).map_err(|e| {
+            let diags: Vec<String> = e
+                .diagnostics
+                .iter()
+                .map(|d| {
+                    format!(
+                        "  {}{}",
+                        d.message.as_deref().unwrap_or("error"),
+                        d.help
+                            .as_ref()
+                            .map(|h| format!(" ({})", h))
+                            .unwrap_or_default()
+                    )
+                })
+                .collect();
+            anyhow::anyhow!("KDL parse error:\n{}", diags.join("\n"))
+        })?;
+        let json_value = crate::kdl_conv::kdl_document_to_value(&doc);
+        let config: SiteConfig = serde_json::from_value(json_value)?;
+        Ok(config)
+    }
+
+    /// Returns the config file path that exists in the project root, if any.
+    pub fn config_path(project_root: &Path) -> Option<PathBuf> {
+        let kdl = project_root.join("novel.kdl");
+        if kdl.exists() {
+            return Some(kdl);
+        }
+        let toml = project_root.join("novel.toml");
+        if toml.exists() {
+            return Some(toml);
+        }
+        None
     }
 
     /// Get the absolute path to the docs root
