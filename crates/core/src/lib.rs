@@ -11,6 +11,7 @@ pub mod serve;
 pub mod sidebar;
 pub mod source;
 pub mod template;
+pub mod typst_processor;
 
 use anyhow::Result;
 use novel_shared::config::SiteConfig;
@@ -723,10 +724,10 @@ window.location.replace('/' + (match || '{}') + '/');
         self.write_to(dir)
     }
 
-    /// Copy non-markdown, non-meta static assets from the docs source.
+    /// Copy non-content, non-meta static assets from the docs source.
     fn copy_static_assets(&self, output_dir: &Path) -> Result<()> {
         for file_path in self.source.list_files() {
-            if file_path.ends_with(".md") {
+            if file_path.ends_with(".md") || file_path.ends_with(".typ") {
                 continue;
             }
             let file_name = Path::new(&file_path)

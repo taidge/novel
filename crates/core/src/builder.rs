@@ -12,6 +12,7 @@ use crate::plugin::{BuiltSiteView, Plugin};
 use crate::routing::scan_routes;
 use crate::sidebar::{generate_nav, generate_sidebar};
 use crate::source::DocsSource;
+use crate::typst_processor::TypstProcessor;
 
 /// Internal build result
 pub(crate) struct BuildResult {
@@ -42,19 +43,40 @@ pub(crate) fn build_pages(
         .collect();
 
     let syntax_theme = config.markdown.syntax_theme.clone();
-    let processor = MarkdownProcessor::new(project_root)
+    let md_processor = MarkdownProcessor::new(project_root)
         .with_line_numbers(config.markdown.show_line_numbers)
         .with_syntax_theme(syntax_theme)
         .with_custom_directives(custom_directives);
 
+    // Typst processor (only for filesystem-backed builds)
+    let typst_processor = project_root.map(|pr| {
+        let docs_root = pr.join(&config.root);
+        TypstProcessor::new(&docs_root)
+    });
+
+    // Check typst CLI availability once if there are .typ files
     info!("Scanning routes...");
     let routes = scan_routes(source)?;
     info!("Found {} routes", routes.len());
+
+    let has_typst_routes = routes.iter().any(|r| r.relative_path.ends_with(".typ"));
+    if has_typst_routes && !TypstProcessor::is_available() {
+        tracing::warn!(
+            "Found .typ files but `typst` CLI is not on PATH — \
+             these files will be skipped. Install typst: https://typst.app"
+        );
+    }
+
+    let typst_available = has_typst_routes && TypstProcessor::is_available();
 
     // Read all file contents sequentially (I/O bound)
     let route_contents: Vec<_> = routes
         .into_iter()
         .filter_map(|route| {
+            // Skip .typ files when typst is not available
+            if route.relative_path.ends_with(".typ") && !typst_available {
+                return None;
+            }
             match source.read_to_string(&route.relative_path) {
                 Ok(content) => Some((route, content)),
                 Err(e) => {
@@ -71,16 +93,27 @@ pub(crate) fn build_pages(
     let mut pages: Vec<PageData> = route_contents
         .par_iter()
         .filter_map(|(route, content)| {
-            // Plugin: transform_markdown
-            let file_path = Path::new(&route.relative_path);
-            let content = plugins
-                .iter()
-                .fold(content.clone(), |md, p| p.transform_markdown(md, file_path));
-
             let relative_path = route.relative_path.clone();
-            match processor.process_string(&content, Path::new(&relative_path), route.clone()) {
+            let is_typst = relative_path.ends_with(".typ");
+
+            let page_result = if is_typst {
+                // Typst processing — no markdown plugin transforms
+                typst_processor
+                    .as_ref()
+                    .expect("typst_processor must exist for .typ files")
+                    .process_file(content, route.clone())
+            } else {
+                // Markdown processing with plugin transforms
+                let file_path = Path::new(&route.relative_path);
+                let content = plugins
+                    .iter()
+                    .fold(content.clone(), |md, p| p.transform_markdown(md, file_path));
+                md_processor.process_string(&content, Path::new(&relative_path), route.clone())
+            };
+
+            match page_result {
                 Ok(mut page) => {
-                    // Plugin: transform_html
+                    // Plugin: transform_html (applies to both markdown and typst)
                     for p in plugins {
                         let html = std::mem::take(&mut page.content_html);
                         page.content_html = p.transform_html(html, &page);

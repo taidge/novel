@@ -4,12 +4,30 @@ use std::path::Path;
 
 use crate::source::DocsSource;
 
-/// Scan the docs source and generate route metadata for all `.md` files.
+/// File extensions recognised as content pages.
+const CONTENT_EXTENSIONS: &[&str] = &[".md", ".typ"];
+
+/// Check whether a file path is a supported content file.
+fn is_content_file(path: &str) -> bool {
+    CONTENT_EXTENSIONS.iter().any(|ext| path.ends_with(ext))
+}
+
+/// Strip the content file extension from a path string.
+fn strip_content_extension(path: &str) -> &str {
+    for ext in CONTENT_EXTENSIONS {
+        if let Some(stripped) = path.strip_suffix(ext) {
+            return stripped;
+        }
+    }
+    path
+}
+
+/// Scan the docs source and generate route metadata for all content files.
 pub(crate) fn scan_routes(source: &dyn DocsSource) -> Result<Vec<RouteMeta>> {
     let mut routes = Vec::new();
 
     for file_path in source.list_files() {
-        if !file_path.ends_with(".md") {
+        if !is_content_file(&file_path) {
             continue;
         }
 
@@ -40,12 +58,13 @@ pub(crate) fn scan_routes(source: &dyn DocsSource) -> Result<Vec<RouteMeta>> {
 ///
 /// Examples:
 /// - `guide/intro.md` -> `/guide/intro`
+/// - `guide/intro.typ` -> `/guide/intro`
 /// - `guide/index.md` -> `/guide/`
 /// - `index.md` -> `/`
 fn file_path_to_route(relative_path: &Path) -> String {
     let path_str = relative_path.to_string_lossy().replace('\\', "/");
 
-    let without_ext = path_str.trim_end_matches(".md");
+    let without_ext = strip_content_extension(&path_str);
 
     if without_ext == "index" {
         "/".to_string()
@@ -72,5 +91,23 @@ mod tests {
             file_path_to_route(Path::new("guide/getting-started.md")),
             "/guide/getting-started"
         );
+    }
+
+    #[test]
+    fn test_typst_file_path_to_route() {
+        assert_eq!(file_path_to_route(Path::new("index.typ")), "/");
+        assert_eq!(file_path_to_route(Path::new("guide/index.typ")), "/guide/");
+        assert_eq!(
+            file_path_to_route(Path::new("guide/intro.typ")),
+            "/guide/intro"
+        );
+    }
+
+    #[test]
+    fn test_is_content_file() {
+        assert!(is_content_file("index.md"));
+        assert!(is_content_file("guide/intro.typ"));
+        assert!(!is_content_file("image.png"));
+        assert!(!is_content_file("style.css"));
     }
 }
