@@ -87,6 +87,12 @@ pub struct MarkdownConfig {
     pub default_wrap_code: bool,
     /// Check for dead internal links during build
     pub check_dead_links: bool,
+    /// Enable math rendering (KaTeX)
+    #[serde(default)]
+    pub math: bool,
+    /// Enable mermaid diagrams
+    #[serde(default)]
+    pub mermaid: bool,
 }
 
 impl Default for MarkdownConfig {
@@ -95,6 +101,8 @@ impl Default for MarkdownConfig {
             show_line_numbers: false,
             default_wrap_code: false,
             check_dead_links: false,
+            math: false,
+            mermaid: false,
         }
     }
 }
@@ -126,4 +134,9 @@ pub struct ThemeConfig {
     pub banner: Option<BannerConfig>,
     /// Source code repository link in navbar
     pub source_link: Option<String>,
+    /// CSS variable overrides (key = CSS variable name without --, value = CSS value)
+    #[serde(default)]
+    pub colors: HashMap<String, String>,
+    /// Path to a custom CSS file (relative to project root)
+    pub custom_css: Option<String>,
 }

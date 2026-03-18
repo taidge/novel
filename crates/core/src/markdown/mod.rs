@@ -4,3 +4,4 @@ pub mod highlight;
 pub mod parser;
 
 pub use parser::{MarkdownProcessor, collect_internal_links};
+pub use crate::plugin::ContainerDirective;

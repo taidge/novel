@@ -30,6 +30,9 @@ pub struct FrontMatter {
     pub description: Option<String>,
     #[serde(default)]
     pub page_type: Option<PageType>,
+    /// Layout template: "doc" (default), "page", "blog", "home", or custom
+    #[serde(default)]
+    pub layout: Option<String>,
     #[serde(default)]
     pub sidebar: Option<bool>,
     #[serde(default)]

@@ -63,7 +63,11 @@ async fn main() -> Result<()> {
         }
         Commands::Build => {
             info!("Building site...");
-            let site = novel_core::DirNovel::load(&project_root)?.build()?;
+            let site = novel_core::DirNovel::load(&project_root)?
+                .plugin(novel_core::plugins::SitemapPlugin)
+                .plugin(novel_core::plugins::FeedPlugin)
+                .plugin(novel_core::plugins::SearchIndexPlugin)
+                .build()?;
             site.write_to_default_output()?;
         }
         Commands::Preview { port } => {

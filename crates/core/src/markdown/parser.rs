@@ -9,11 +9,13 @@ use std::path::Path;
 use super::container::preprocess_containers;
 use super::file_embed::{parse_file_embed, read_embedded_file};
 use super::highlight::highlight_code;
+use crate::plugin::ContainerDirective;
 
 /// Main markdown processing engine
 pub struct MarkdownProcessor {
     project_root: Option<std::path::PathBuf>,
     show_line_numbers: bool,
+    custom_directives: Vec<Box<dyn ContainerDirective>>,
 }
 
 impl MarkdownProcessor {
@@ -21,11 +23,17 @@ impl MarkdownProcessor {
         Self {
             project_root: project_root.map(|p| p.to_path_buf()),
             show_line_numbers: false,
+            custom_directives: Vec::new(),
         }
     }
 
     pub fn with_line_numbers(mut self, show: bool) -> Self {
         self.show_line_numbers = show;
+        self
+    }
+
+    pub fn with_custom_directives(mut self, directives: Vec<Box<dyn ContainerDirective>>) -> Self {
+        self.custom_directives = directives;
         self
     }
 
@@ -56,14 +64,16 @@ impl MarkdownProcessor {
         };
 
         // 2. Pre-process container directives (including tabs, steps, badges)
-        let processed = preprocess_containers(&markdown_body);
+        let processed = preprocess_containers(&markdown_body, &self.custom_directives);
 
         // 3. Parse markdown and collect events
         let options = Options::ENABLE_GFM
             | Options::ENABLE_STRIKETHROUGH
             | Options::ENABLE_TABLES
             | Options::ENABLE_TASKLISTS
-            | Options::ENABLE_HEADING_ATTRIBUTES;
+            | Options::ENABLE_HEADING_ATTRIBUTES
+            | Options::ENABLE_FOOTNOTES
+            | Options::ENABLE_MATH;
 
         let parser = Parser::new_ext(&processed, options);
         let file_dir = file_path.parent().unwrap_or(Path::new("."));
@@ -143,6 +153,17 @@ impl MarkdownProcessor {
                 Event::End(TagEnd::CodeBlock) => {
                     in_code_block = false;
 
+                    // Mermaid code blocks: render as <pre class="mermaid">
+                    if code_lang == "mermaid" {
+                        events.push(Event::Html(CowStr::from(format!(
+                            "<pre class=\"mermaid\">{}</pre>",
+                            html_escape(&code_content)
+                        ))));
+                        code_lang.clear();
+                        code_info.clear();
+                        code_content.clear();
+                    } else {
+
                     // Check for file embed (requires project_root)
                     if let Some(ref project_root) = self.project_root {
                         if let Some(embed) = parse_file_embed(&code_info) {
@@ -191,6 +212,7 @@ impl MarkdownProcessor {
                     );
 
                     events.push(Event::Html(CowStr::from(html_output)));
+                    }
                 }
                 // External links: add target="_blank"
                 Event::Start(Tag::Link {
@@ -231,6 +253,19 @@ impl MarkdownProcessor {
                     events.push(Event::Html(CowStr::from(
                         "\" loading=\"lazy\" class=\"zoomable\">",
                     )));
+                }
+                // Math: inline $...$ and display $$...$$
+                Event::InlineMath(text) => {
+                    events.push(Event::Html(CowStr::from(format!(
+                        "<span class=\"math math-inline\">{}</span>",
+                        html_escape(&text)
+                    ))));
+                }
+                Event::DisplayMath(text) => {
+                    events.push(Event::Html(CowStr::from(format!(
+                        "<div class=\"math math-display\">{}</div>",
+                        html_escape(&text)
+                    ))));
                 }
                 _ => {
                     events.push(event);

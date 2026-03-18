@@ -1,12 +1,14 @@
 use anyhow::Result;
 use novel_shared::config::SiteConfig;
 use novel_shared::{NavItem, PageData, PageLink, PageType, SidebarItem};
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::process::Command;
 use tracing::info;
 
 use crate::markdown::{MarkdownProcessor, collect_internal_links};
+use crate::plugin::Plugin;
 use crate::routing::scan_routes;
 use crate::sidebar::{generate_nav, generate_sidebar};
 use crate::source::DocsSource;
@@ -26,34 +28,68 @@ pub(crate) fn build_pages(
     source: &dyn DocsSource,
     config: &SiteConfig,
     project_root: Option<&Path>,
+    plugins: &[Box<dyn Plugin>],
 ) -> Result<BuildResult> {
-    let processor =
-        MarkdownProcessor::new(project_root).with_line_numbers(config.markdown.show_line_numbers);
+    // Collect custom container directives from all plugins
+    let custom_directives: Vec<_> = plugins
+        .iter()
+        .flat_map(|p| p.container_directives())
+        .collect();
+
+    let processor = MarkdownProcessor::new(project_root)
+        .with_line_numbers(config.markdown.show_line_numbers)
+        .with_custom_directives(custom_directives);
 
     info!("Scanning routes...");
     let routes = scan_routes(source)?;
     info!("Found {} routes", routes.len());
 
-    let mut pages = Vec::new();
-    for route in routes {
-        info!("Processing: {}", route.relative_path);
-        let content = match source.read_to_string(&route.relative_path) {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::warn!("Failed to read {}: {}", route.relative_path, e);
-                continue;
+    // Read all file contents sequentially (I/O bound)
+    let route_contents: Vec<_> = routes
+        .into_iter()
+        .filter_map(|route| {
+            match source.read_to_string(&route.relative_path) {
+                Ok(content) => Some((route, content)),
+                Err(e) => {
+                    tracing::warn!("Failed to read {}: {}", route.relative_path, e);
+                    None
+                }
             }
-        };
-        let relative_path = route.relative_path.clone();
-        match processor.process_string(&content, Path::new(&relative_path), route) {
-            Ok(page) => {
-                pages.push(page);
+        })
+        .collect();
+
+    info!("Processing {} pages in parallel...", route_contents.len());
+
+    // Process all pages in parallel (CPU bound)
+    let mut pages: Vec<PageData> = route_contents
+        .par_iter()
+        .filter_map(|(route, content)| {
+            // Plugin: transform_markdown
+            let file_path = Path::new(&route.relative_path);
+            let content = plugins
+                .iter()
+                .fold(content.clone(), |md, p| p.transform_markdown(md, file_path));
+
+            let relative_path = route.relative_path.clone();
+            match processor.process_string(&content, Path::new(&relative_path), route.clone()) {
+                Ok(mut page) => {
+                    // Plugin: transform_html
+                    for p in plugins {
+                        let html = std::mem::take(&mut page.content_html);
+                        page.content_html = p.transform_html(html, &page);
+                    }
+                    Some(page)
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to process {}: {}", relative_path, e);
+                    None
+                }
             }
-            Err(e) => {
-                tracing::warn!("Failed to process {}: {}", relative_path, e);
-            }
-        }
-    }
+        })
+        .collect();
+
+    // Sort by route path for deterministic ordering
+    pages.sort_by(|a, b| a.route.route_path.cmp(&b.route.route_path));
 
     set_prev_next_links(&mut pages);
 
@@ -93,94 +129,6 @@ pub(crate) fn route_to_file_path(output_dir: &Path, route_path: &str) -> std::pa
         let trimmed = route_path.trim_matches('/');
         output_dir.join(trimmed).join("index.html")
     }
-}
-
-/// Generate sitemap XML string.
-pub(crate) fn generate_sitemap_xml(config: &SiteConfig, pages: &[PageData]) -> Option<String> {
-    let base_url = config.site_url.as_deref()?.trim_end_matches('/');
-    if base_url.is_empty() {
-        return None;
-    }
-
-    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    xml.push_str("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
-
-    for page in pages {
-        let route = &page.route.route_path;
-        let loc = if route == "/" {
-            format!("{}/", base_url)
-        } else {
-            format!("{}{}", base_url, route)
-        };
-
-        xml.push_str("  <url>\n");
-        xml.push_str(&format!("    <loc>{}</loc>\n", loc));
-        if let Some(ref date) = page.last_updated {
-            xml.push_str(&format!("    <lastmod>{}</lastmod>\n", date));
-        }
-        let priority = if matches!(page.frontmatter.page_type, Some(PageType::Home)) {
-            "1.0"
-        } else {
-            "0.7"
-        };
-        xml.push_str(&format!("    <priority>{}</priority>\n", priority));
-        xml.push_str("  </url>\n");
-    }
-
-    xml.push_str("</urlset>\n");
-    Some(xml)
-}
-
-/// Generate Atom feed XML string.
-pub(crate) fn generate_feed_xml(config: &SiteConfig, pages: &[PageData]) -> Option<String> {
-    let base_url = config.site_url.as_deref()?.trim_end_matches('/');
-    if base_url.is_empty() {
-        return None;
-    }
-
-    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    xml.push_str("<feed xmlns=\"http://www.w3.org/2005/Atom\">\n");
-    xml.push_str(&format!("  <title>{}</title>\n", xml_escape(&config.title)));
-    xml.push_str(&format!(
-        "  <subtitle>{}</subtitle>\n",
-        xml_escape(&config.description)
-    ));
-    xml.push_str(&format!(
-        "  <link href=\"{}/\" rel=\"alternate\"/>\n",
-        base_url
-    ));
-    xml.push_str(&format!(
-        "  <link href=\"{}/feed.xml\" rel=\"self\"/>\n",
-        base_url
-    ));
-    xml.push_str(&format!("  <id>{}/</id>\n", base_url));
-
-    for page in pages {
-        if matches!(
-            page.frontmatter.page_type,
-            Some(PageType::Home) | Some(PageType::NotFound)
-        ) {
-            continue;
-        }
-        let url = format!("{}{}", base_url, &page.route.route_path);
-        xml.push_str("  <entry>\n");
-        xml.push_str(&format!("    <title>{}</title>\n", xml_escape(&page.title)));
-        xml.push_str(&format!("    <link href=\"{}\"/>\n", url));
-        xml.push_str(&format!("    <id>{}</id>\n", url));
-        if let Some(ref date) = page.last_updated {
-            xml.push_str(&format!("    <updated>{}T00:00:00Z</updated>\n", date));
-        }
-        if !page.description.is_empty() {
-            xml.push_str(&format!(
-                "    <summary>{}</summary>\n",
-                xml_escape(&page.description)
-            ));
-        }
-        xml.push_str("  </entry>\n");
-    }
-
-    xml.push_str("</feed>\n");
-    Some(xml)
 }
 
 // ---------------------------------------------------------------------------
@@ -259,12 +207,4 @@ pub(crate) fn get_git_last_updated(file_path: &Path) -> Option<String> {
     } else {
         None
     }
-}
-
-fn xml_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
 }

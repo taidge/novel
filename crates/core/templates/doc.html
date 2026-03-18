@@ -15,6 +15,7 @@
 <div class="doc-layout">
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-inner">
+            {% block sidebar_before %}{% endblock %}
             <div class="search-box">
                 <input type="text" id="search-input" placeholder="Search docs..." autocomplete="off">
                 <kbd class="search-kbd">/</kbd>
@@ -43,6 +44,7 @@
                     {% endif %}
                 {% endfor %}
             </nav>
+            {% block sidebar_after %}{% endblock %}
         </div>
     </aside>
 

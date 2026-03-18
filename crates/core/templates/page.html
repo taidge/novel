@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.title }} | {{ site.title }}{% endblock %}
+{% block description %}{{ page.description }}{% endblock %}
+
+{% block head %}
+{% if page.frontmatter.head %}
+{% for tag in page.frontmatter.head %}
+<{{ tag.tag }}{% for key, val in tag.attrs %} {{ key }}="{{ val }}"{% endfor %}>{% if tag.content %}{{ tag.content }}</{{ tag.tag }}>{% endif %}
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="page-layout">
+    <main class="page-content">
+        <article class="markdown-body">
+            {{ page.content_html|safe }}
+        </article>
+    </main>
+</div>
+{% endblock %}

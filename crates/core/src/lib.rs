@@ -1,14 +1,20 @@
 pub mod builder;
+pub mod error;
 pub mod markdown;
+pub mod plugin;
+pub mod plugins;
 pub mod routing;
 pub mod search;
+#[cfg(feature = "salvo")]
+pub mod serve;
 pub mod sidebar;
 pub mod source;
 pub mod template;
 
 use anyhow::Result;
-use novel_shared::config::{SiteConfig, ThemeConfig};
+use novel_shared::config::SiteConfig;
 use novel_shared::{NavItem, PageData, PageType, SidebarItem};
+use plugin::{BuiltSiteView, Plugin};
 use rust_embed::Embed;
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -38,7 +44,7 @@ pub trait Novel {
 
     /// Build the site: parse all markdown, generate navigation, and prepare
     /// everything needed to render pages.
-    fn build(&self) -> Result<BuiltSite>;
+    fn build(&mut self) -> Result<BuiltSite>;
 }
 
 // ---------------------------------------------------------------------------
@@ -72,6 +78,7 @@ pub trait Novel {
 pub struct DirNovel {
     config: SiteConfig,
     project_root: PathBuf,
+    plugins: Vec<Box<dyn Plugin>>,
 }
 
 impl DirNovel {
@@ -92,6 +99,7 @@ impl DirNovel {
         Self {
             config,
             project_root,
+            plugins: Vec::new(),
         }
     }
 
@@ -102,6 +110,7 @@ impl DirNovel {
         Ok(Self {
             config,
             project_root,
+            plugins: Vec::new(),
         })
     }
 
@@ -138,13 +147,13 @@ impl DirNovel {
     }
 
     /// Replace the entire theme config.
-    pub fn theme(mut self, theme: ThemeConfig) -> Self {
+    pub fn theme(mut self, theme: novel_shared::config::ThemeConfig) -> Self {
         self.config.theme = theme;
         self
     }
 
     /// Mutate the theme config in place via a closure.
-    pub fn with_theme(mut self, f: impl FnOnce(&mut ThemeConfig)) -> Self {
+    pub fn with_theme(mut self, f: impl FnOnce(&mut novel_shared::config::ThemeConfig)) -> Self {
         f(&mut self.config.theme);
         self
     }
@@ -160,6 +169,12 @@ impl DirNovel {
         self.project_root = root.as_ref().to_path_buf();
         self
     }
+
+    /// Register a plugin.
+    pub fn plugin(mut self, p: impl Plugin + 'static) -> Self {
+        self.plugins.push(Box::new(p));
+        self
+    }
 }
 
 impl Novel for DirNovel {
@@ -167,7 +182,12 @@ impl Novel for DirNovel {
         &self.config
     }
 
-    fn build(&self) -> Result<BuiltSite> {
+    fn build(&mut self) -> Result<BuiltSite> {
+        // Let plugins mutate config
+        for p in &self.plugins {
+            p.on_config(&mut self.config);
+        }
+
         let docs_root = self.config.docs_root(&self.project_root);
         if !docs_root.exists() {
             anyhow::bail!(
@@ -177,7 +197,7 @@ impl Novel for DirNovel {
         }
 
         let source = DirSource::new(docs_root.clone());
-        let mut br = build_pages(&source, &self.config, Some(&self.project_root))?;
+        let mut br = build_pages(&source, &self.config, Some(&self.project_root), &self.plugins)?;
 
         // Git timestamps (DirNovel-specific)
         if self.config.theme.last_updated {
@@ -187,7 +207,10 @@ impl Novel for DirNovel {
             }
         }
 
-        let engine = TemplateEngine::new(Some(&self.project_root))?;
+        let engine = TemplateEngine::new(Some(&self.project_root), &self.plugins)?;
+
+        // Take plugins out of self to move into BuiltSite
+        let plugins = std::mem::take(&mut self.plugins);
 
         Ok(BuiltSite {
             config: self.config.clone(),
@@ -197,6 +220,7 @@ impl Novel for DirNovel {
             sidebar: br.sidebar,
             engine,
             source: Box::new(source),
+            plugins,
         })
     }
 }
@@ -223,6 +247,7 @@ impl Novel for DirNovel {
 /// ```
 pub struct EmbedNovel<E: Embed> {
     config: SiteConfig,
+    plugins: Vec<Box<dyn Plugin>>,
     _marker: PhantomData<E>,
 }
 
@@ -230,6 +255,7 @@ impl<E: Embed + Send + Sync + 'static> EmbedNovel<E> {
     pub fn new() -> Self {
         Self {
             config: SiteConfig::default(),
+            plugins: Vec::new(),
             _marker: PhantomData,
         }
     }
@@ -267,13 +293,13 @@ impl<E: Embed + Send + Sync + 'static> EmbedNovel<E> {
     }
 
     /// Replace the entire theme config.
-    pub fn theme(mut self, theme: ThemeConfig) -> Self {
+    pub fn theme(mut self, theme: novel_shared::config::ThemeConfig) -> Self {
         self.config.theme = theme;
         self
     }
 
     /// Mutate the theme config in place via a closure.
-    pub fn with_theme(mut self, f: impl FnOnce(&mut ThemeConfig)) -> Self {
+    pub fn with_theme(mut self, f: impl FnOnce(&mut novel_shared::config::ThemeConfig)) -> Self {
         f(&mut self.config.theme);
         self
     }
@@ -281,6 +307,12 @@ impl<E: Embed + Send + Sync + 'static> EmbedNovel<E> {
     /// Replace the entire site config.
     pub fn config(mut self, config: SiteConfig) -> Self {
         self.config = config;
+        self
+    }
+
+    /// Register a plugin.
+    pub fn plugin(mut self, p: impl Plugin + 'static) -> Self {
+        self.plugins.push(Box::new(p));
         self
     }
 }
@@ -296,10 +328,17 @@ impl<E: Embed + Send + Sync + 'static> Novel for EmbedNovel<E> {
         &self.config
     }
 
-    fn build(&self) -> Result<BuiltSite> {
+    fn build(&mut self) -> Result<BuiltSite> {
+        // Let plugins mutate config
+        for p in &self.plugins {
+            p.on_config(&mut self.config);
+        }
+
         let source = EmbedSource::<E>::new();
-        let br = build_pages(&source, &self.config, None)?;
-        let engine = TemplateEngine::new(None)?;
+        let br = build_pages(&source, &self.config, None, &self.plugins)?;
+        let engine = TemplateEngine::new(None, &self.plugins)?;
+
+        let plugins = std::mem::take(&mut self.plugins);
 
         Ok(BuiltSite {
             config: self.config.clone(),
@@ -309,6 +348,7 @@ impl<E: Embed + Send + Sync + 'static> Novel for EmbedNovel<E> {
             sidebar: br.sidebar,
             engine,
             source: Box::new(source),
+            plugins,
         })
     }
 }
@@ -329,6 +369,7 @@ pub struct BuiltSite {
     sidebar: HashMap<String, Vec<SidebarItem>>,
     engine: TemplateEngine,
     source: Box<dyn DocsSource>,
+    plugins: Vec<Box<dyn Plugin>>,
 }
 
 impl BuiltSite {
@@ -362,11 +403,23 @@ impl BuiltSite {
     // -- rendering ----------------------------------------------------------
 
     /// Render a single page to a full HTML string.
+    ///
+    /// Layout dispatch:
+    /// 1. `page_type: home` or `layout: "home"` → home template
+    /// 2. `layout: "page"` → full-width page template (no sidebar/TOC)
+    /// 3. `layout: "blog"` → centered blog template with date header
+    /// 4. Everything else → doc template (sidebar + TOC)
     pub fn render_page(&self, page: &PageData) -> Result<String> {
         let is_home = matches!(page.frontmatter.page_type, Some(PageType::Home));
+        let layout = page.frontmatter.layout.as_deref();
 
-        if is_home {
+        if is_home || layout == Some("home") {
             self.engine.render_home(page, &self.config, &self.nav)
+        } else if layout == Some("page") {
+            self.engine
+                .render_page_layout(page, &self.config, &self.nav)
+        } else if layout == Some("blog") {
+            self.engine.render_blog(page, &self.config, &self.nav)
         } else {
             let sidebar_key = find_sidebar_key(&page.route.route_path, &self.sidebar);
             let sidebar_items = sidebar_key
@@ -405,12 +458,24 @@ impl BuiltSite {
 
     /// Sitemap XML (returns `None` when `site_url` is not configured).
     pub fn sitemap_xml(&self) -> Option<String> {
-        builder::generate_sitemap_xml(&self.config, &self.pages)
+        let view = self.as_view();
+        plugins::sitemap::generate_sitemap_xml(&view)
     }
 
     /// Atom/RSS feed XML (returns `None` when `site_url` is not configured).
     pub fn feed_xml(&self) -> Option<String> {
-        builder::generate_feed_xml(&self.config, &self.pages)
+        let view = self.as_view();
+        plugins::feed::generate_feed_xml(&view)
+    }
+
+    /// Create a `BuiltSiteView` for plugin consumption.
+    fn as_view(&self) -> BuiltSiteView<'_> {
+        BuiltSiteView {
+            config: &self.config,
+            pages: &self.pages,
+            nav: &self.nav,
+            sidebar: &self.sidebar,
+        }
     }
 
     // -- write to disk ------------------------------------------------------
@@ -448,20 +513,18 @@ impl BuiltSite {
         let html_404 = self.render_404()?;
         std::fs::write(output_dir.join("404.html"), html_404)?;
 
-        // Search index
-        let search_json = self.search_index_json()?;
-        std::fs::write(assets_dir.join("search-index.json"), search_json)?;
-
-        // Sitemap
-        if let Some(xml) = self.sitemap_xml() {
-            std::fs::write(output_dir.join("sitemap.xml"), xml)?;
-            info!("Generated sitemap.xml");
-        }
-
-        // Feed
-        if let Some(xml) = self.feed_xml() {
-            std::fs::write(output_dir.join("feed.xml"), xml)?;
-            info!("Generated feed.xml");
+        // Run plugin on_build_complete hooks
+        let view = self.as_view();
+        for plugin in &self.plugins {
+            let files = plugin.on_build_complete(&view);
+            for (rel_path, contents) in files {
+                let dest = output_dir.join(&rel_path);
+                if let Some(parent) = dest.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::write(&dest, contents)?;
+                info!("Plugin '{}' generated: {}", plugin.name(), rel_path);
+            }
         }
 
         // Static assets from docs source
