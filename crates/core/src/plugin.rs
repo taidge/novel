@@ -9,6 +9,7 @@ pub struct BuiltSiteView<'a> {
     pub pages: &'a [PageData],
     pub nav: &'a [NavItem],
     pub sidebar: &'a HashMap<String, Vec<SidebarItem>>,
+    pub project_root: Option<&'a Path>,
 }
 
 /// Extension point for Novel's build pipeline.
@@ -22,6 +23,12 @@ pub trait Plugin: Send + Sync {
     /// Called before the build starts — mutate the site config if needed.
     fn on_config(&self, _config: &mut SiteConfig) {}
 
+    /// Configure the plugin from the `[plugins.<name>]` table in novel.toml.
+    fn configure(&mut self, _value: Option<&toml::Value>) {}
+
+    /// Called before any pages are processed.
+    fn on_pre_build(&self, _config: &SiteConfig) {}
+
     /// Transform raw markdown before it is parsed.
     fn transform_markdown(&self, markdown: String, _path: &Path) -> String {
         markdown
@@ -30,6 +37,28 @@ pub trait Plugin: Send + Sync {
     /// Transform rendered HTML after markdown parsing.
     fn transform_html(&self, html: String, _page: &PageData) -> String {
         html
+    }
+
+    /// Called after each page is built.
+    fn on_page_built(&self, _page: &PageData) {}
+
+    /// Transform the navigation items after they are generated.
+    fn transform_nav(&self, nav: Vec<NavItem>, _site: &BuiltSiteView) -> Vec<NavItem> {
+        nav
+    }
+
+    /// Transform the sidebar after it is generated.
+    fn transform_sidebar(
+        &self,
+        sidebar: HashMap<String, Vec<SidebarItem>>,
+        _site: &BuiltSiteView,
+    ) -> HashMap<String, Vec<SidebarItem>> {
+        sidebar
+    }
+
+    /// Generate virtual pages that don't correspond to source files.
+    fn generate_pages(&self, _site: &BuiltSiteView) -> Vec<PageData> {
+        vec![]
     }
 
     /// Generate additional output files after the build completes.

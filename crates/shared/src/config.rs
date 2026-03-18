@@ -1,4 +1,4 @@
-use crate::types::{BannerConfig, NavItem, SocialLink};
+use crate::types::{BannerConfig, NavItem, SidebarItem, SocialLink};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -32,6 +32,21 @@ pub struct SiteConfig {
     /// Markdown configuration
     #[serde(default)]
     pub markdown: MarkdownConfig,
+    /// Per-plugin configuration (keyed by plugin name)
+    #[serde(default)]
+    pub plugins: HashMap<String, toml::Value>,
+    /// Global redirects: old path -> new path
+    #[serde(default)]
+    pub redirects: HashMap<String, String>,
+    /// Enable asset fingerprinting (content hash in CSS/JS filenames)
+    #[serde(default)]
+    pub asset_fingerprint: bool,
+    /// Template engine: "minijinja" (default), "tera", "handlebars"
+    #[serde(default = "default_template_engine")]
+    pub template_engine: String,
+    /// Internationalization configuration
+    #[serde(default)]
+    pub i18n: Option<I18nConfig>,
 }
 
 impl Default for SiteConfig {
@@ -49,6 +64,11 @@ impl Default for SiteConfig {
             site_url: None,
             theme: ThemeConfig::default(),
             markdown: MarkdownConfig::default(),
+            plugins: HashMap::new(),
+            redirects: HashMap::new(),
+            asset_fingerprint: false,
+            template_engine: default_template_engine(),
+            i18n: None,
         }
     }
 }
@@ -93,6 +113,17 @@ pub struct MarkdownConfig {
     /// Enable mermaid diagrams
     #[serde(default)]
     pub mermaid: bool,
+    /// Syntax highlighting theme name (default: "base16-ocean.dark")
+    #[serde(default = "default_syntax_theme")]
+    pub syntax_theme: String,
+}
+
+fn default_template_engine() -> String {
+    "minijinja".to_string()
+}
+
+fn default_syntax_theme() -> String {
+    "base16-ocean.dark".to_string()
 }
 
 impl Default for MarkdownConfig {
@@ -103,6 +134,7 @@ impl Default for MarkdownConfig {
             check_dead_links: false,
             math: false,
             mermaid: false,
+            syntax_theme: default_syntax_theme(),
         }
     }
 }
@@ -139,4 +171,40 @@ pub struct ThemeConfig {
     pub colors: HashMap<String, String>,
     /// Path to a custom CSS file (relative to project root)
     pub custom_css: Option<String>,
+    /// Custom 404 page title
+    pub not_found_title: Option<String>,
+    /// Custom 404 page message
+    pub not_found_message: Option<String>,
+}
+
+/// Internationalization configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct I18nConfig {
+    pub default_locale: String,
+    pub locales: Vec<LocaleConfig>,
+}
+
+/// Configuration for a single locale
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocaleConfig {
+    pub code: String,
+    pub name: String,
+    pub dir: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub theme: Option<LocaleThemeOverrides>,
+}
+
+/// Per-locale theme overrides
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LocaleThemeOverrides {
+    pub nav: Option<Vec<NavItem>>,
+    pub sidebar: Option<HashMap<String, Vec<SidebarItem>>>,
+    pub footer: Option<String>,
+    pub edit_link_text: Option<String>,
+    pub last_updated_text: Option<String>,
 }

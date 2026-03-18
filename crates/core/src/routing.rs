@@ -26,6 +26,7 @@ pub(crate) fn scan_routes(source: &dyn DocsSource) -> Result<Vec<RouteMeta>> {
             absolute_path: relative.clone(),
             relative_path: relative,
             page_name,
+            locale: None,
         });
     }
 

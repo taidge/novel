@@ -63,6 +63,8 @@ fn build_site(project_root: &Path) -> Result<novel_core::BuiltSite> {
         .plugin(novel_core::plugins::SitemapPlugin)
         .plugin(novel_core::plugins::FeedPlugin)
         .plugin(novel_core::plugins::SearchIndexPlugin)
+        .plugin(novel_core::plugins::RobotsPlugin)
+        .plugin(novel_core::plugins::RedirectsPlugin)
         .plugin(LiveReloadPlugin)
         .build()
 }

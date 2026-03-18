@@ -4,8 +4,11 @@ use novel_core::Novel;
 use std::path::PathBuf;
 use tracing::info;
 
+mod check;
+mod clean;
 mod dev;
 mod init;
+mod new_page;
 
 #[derive(Parser)]
 #[command(
@@ -31,7 +34,11 @@ enum Commands {
         port: u16,
     },
     /// Build the static site for production
-    Build,
+    Build {
+        /// Force full rebuild (bypass cache)
+        #[arg(long)]
+        force: bool,
+    },
     /// Preview the built site locally
     Preview {
         /// Port to listen on
@@ -43,6 +50,18 @@ enum Commands {
         /// Project name
         #[arg(default_value = "my-docs")]
         name: String,
+    },
+    /// Check the site for issues (dead links, missing descriptions, orphan pages)
+    Check,
+    /// Delete the output directory
+    Clean,
+    /// Create a new documentation page
+    New {
+        /// Page path relative to docs root (without .md extension)
+        path: String,
+        /// Page layout (doc, page, blog)
+        #[arg(long, default_value = "doc")]
+        layout: String,
     },
 }
 
@@ -61,12 +80,14 @@ async fn main() -> Result<()> {
         Commands::Dev { port } => {
             dev::run_dev_server(&project_root, port).await?;
         }
-        Commands::Build => {
+        Commands::Build { force: _ } => {
             info!("Building site...");
             let site = novel_core::DirNovel::load(&project_root)?
                 .plugin(novel_core::plugins::SitemapPlugin)
                 .plugin(novel_core::plugins::FeedPlugin)
                 .plugin(novel_core::plugins::SearchIndexPlugin)
+                .plugin(novel_core::plugins::RobotsPlugin)
+                .plugin(novel_core::plugins::RedirectsPlugin)
                 .build()?;
             site.write_to_default_output()?;
         }
@@ -78,6 +99,15 @@ async fn main() -> Result<()> {
         }
         Commands::Init { name } => {
             init::create_project(&project_root, &name)?;
+        }
+        Commands::Check => {
+            check::run_check(&project_root)?;
+        }
+        Commands::Clean => {
+            clean::run_clean(&project_root)?;
+        }
+        Commands::New { path, layout } => {
+            new_page::run_new_page(&project_root, &path, &layout)?;
         }
     }
 

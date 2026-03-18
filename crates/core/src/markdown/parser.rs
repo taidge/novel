@@ -15,6 +15,7 @@ use crate::plugin::ContainerDirective;
 pub struct MarkdownProcessor {
     project_root: Option<std::path::PathBuf>,
     show_line_numbers: bool,
+    syntax_theme: String,
     custom_directives: Vec<Box<dyn ContainerDirective>>,
 }
 
@@ -23,12 +24,18 @@ impl MarkdownProcessor {
         Self {
             project_root: project_root.map(|p| p.to_path_buf()),
             show_line_numbers: false,
+            syntax_theme: "base16-ocean.dark".to_string(),
             custom_directives: Vec::new(),
         }
     }
 
     pub fn with_line_numbers(mut self, show: bool) -> Self {
         self.show_line_numbers = show;
+        self
+    }
+
+    pub fn with_syntax_theme(mut self, theme: String) -> Self {
+        self.syntax_theme = theme;
         self
     }
 
@@ -198,7 +205,7 @@ impl MarkdownProcessor {
                     } else {
                         &code_lang
                     };
-                    let highlighted = highlight_code(&code_content, effective_lang);
+                    let highlighted = highlight_code(&code_content, effective_lang, &self.syntax_theme);
 
                     // Build HTML with line features
                     let html_output = build_code_block_html(
@@ -295,6 +302,9 @@ impl MarkdownProcessor {
             last_updated: None,
             prev_page: None,
             next_page: None,
+            reading_time: None,
+            word_count: None,
+            breadcrumbs: Vec::new(),
         })
     }
 }

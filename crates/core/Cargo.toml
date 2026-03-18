@@ -6,6 +6,8 @@ edition.workspace = true
 [features]
 default = []
 salvo = ["dep:salvo"]
+tera = ["dep:tera"]
+handlebars = ["dep:handlebars"]
 
 [dependencies]
 salvo = { workspace = true, optional = true }
@@ -27,3 +29,5 @@ regex = { workspace = true }
 once_cell = { workspace = true }
 globset = { workspace = true }
 rust-embed = { workspace = true }
+tera = { workspace = true, optional = true }
+handlebars = { workspace = true, optional = true }

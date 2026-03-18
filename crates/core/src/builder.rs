@@ -8,7 +8,7 @@ use std::process::Command;
 use tracing::info;
 
 use crate::markdown::{MarkdownProcessor, collect_internal_links};
-use crate::plugin::Plugin;
+use crate::plugin::{BuiltSiteView, Plugin};
 use crate::routing::scan_routes;
 use crate::sidebar::{generate_nav, generate_sidebar};
 use crate::source::DocsSource;
@@ -30,14 +30,21 @@ pub(crate) fn build_pages(
     project_root: Option<&Path>,
     plugins: &[Box<dyn Plugin>],
 ) -> Result<BuildResult> {
+    // Plugin: on_pre_build
+    for p in plugins {
+        p.on_pre_build(config);
+    }
+
     // Collect custom container directives from all plugins
     let custom_directives: Vec<_> = plugins
         .iter()
         .flat_map(|p| p.container_directives())
         .collect();
 
+    let syntax_theme = config.markdown.syntax_theme.clone();
     let processor = MarkdownProcessor::new(project_root)
         .with_line_numbers(config.markdown.show_line_numbers)
+        .with_syntax_theme(syntax_theme)
         .with_custom_directives(custom_directives);
 
     info!("Scanning routes...");
@@ -78,6 +85,18 @@ pub(crate) fn build_pages(
                         let html = std::mem::take(&mut page.content_html);
                         page.content_html = p.transform_html(html, &page);
                     }
+
+                    // Compute word count and reading time
+                    let plain_text = strip_html_tags(&page.content_html);
+                    let wc = plain_text.split_whitespace().count() as u32;
+                    page.word_count = Some(wc);
+                    page.reading_time = Some((wc / 200).max(1));
+
+                    // Plugin: on_page_built
+                    for p in plugins {
+                        p.on_page_built(&page);
+                    }
+
                     Some(page)
                 }
                 Err(e) => {
@@ -91,23 +110,58 @@ pub(crate) fn build_pages(
     // Sort by route path for deterministic ordering
     pages.sort_by(|a, b| a.route.route_path.cmp(&b.route.route_path));
 
+    // Compute breadcrumbs for each page
+    compute_breadcrumbs(&mut pages);
+
     set_prev_next_links(&mut pages);
 
     if config.markdown.check_dead_links {
         check_dead_links(&pages);
     }
 
-    let nav = if config.theme.nav.is_empty() {
+    let mut nav = if config.theme.nav.is_empty() {
         generate_nav(&pages)
     } else {
         config.theme.nav.clone()
     };
 
-    let sidebar = if config.theme.sidebar.is_empty() {
+    let mut sidebar = if config.theme.sidebar.is_empty() {
         generate_sidebar(source, &pages)?
     } else {
         config.theme.sidebar.clone()
     };
+
+    // Plugin: transform_nav and transform_sidebar
+    // We pass cloned nav/sidebar in the view since we need to move the originals
+    // through the transform chain.
+    for p in plugins {
+        let nav_snapshot = nav.clone();
+        let sidebar_snapshot = sidebar.clone();
+        let view = BuiltSiteView {
+            config,
+            pages: &pages,
+            nav: &nav_snapshot,
+            sidebar: &sidebar_snapshot,
+            project_root,
+        };
+        nav = p.transform_nav(nav, &view);
+        sidebar = p.transform_sidebar(sidebar, &view);
+    }
+
+    // Plugin: generate_pages (virtual pages)
+    let mut virtual_pages_collected = Vec::new();
+    for p in plugins {
+        let view = BuiltSiteView {
+            config,
+            pages: &pages,
+            nav: &nav,
+            sidebar: &sidebar,
+            project_root,
+        };
+        let vp = p.generate_pages(&view);
+        virtual_pages_collected.extend(vp);
+    }
+    pages.extend(virtual_pages_collected);
 
     Ok(BuildResult {
         pages,
@@ -192,6 +246,85 @@ fn check_dead_links(pages: &[PageData]) {
             }
         }
     }
+}
+
+/// Compute breadcrumbs for each page from its route path segments.
+fn compute_breadcrumbs(pages: &mut [PageData]) {
+    // Build a map of route_path -> title for quick lookup
+    let title_map: HashMap<String, String> = pages
+        .iter()
+        .map(|p| (p.route.route_path.clone(), p.title.clone()))
+        .collect();
+
+    for page in pages.iter_mut() {
+        let route = &page.route.route_path;
+        if route == "/" {
+            continue;
+        }
+
+        let mut crumbs = vec![PageLink {
+            title: "Home".to_string(),
+            link: "/".to_string(),
+        }];
+
+        let trimmed = route.trim_matches('/');
+        let segments: Vec<&str> = trimmed.split('/').collect();
+        let mut path_acc = String::new();
+
+        for (i, seg) in segments.iter().enumerate() {
+            if i < segments.len() - 1 {
+                // Intermediate directory
+                path_acc.push('/');
+                path_acc.push_str(seg);
+                let dir_route = format!("{}/", path_acc);
+                let title = title_map
+                    .get(&dir_route)
+                    .cloned()
+                    .unwrap_or_else(|| title_case(seg));
+                crumbs.push(PageLink {
+                    title,
+                    link: dir_route,
+                });
+            } else {
+                // Current page (no link needed, but included for display)
+                crumbs.push(PageLink {
+                    title: page.title.clone(),
+                    link: route.clone(),
+                });
+            }
+        }
+
+        page.breadcrumbs = crumbs;
+    }
+}
+
+fn title_case(s: &str) -> String {
+    s.replace('-', " ")
+        .split_whitespace()
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(c) => format!("{}{}", c.to_uppercase(), chars.as_str()),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Simple HTML tag stripper for plain text extraction.
+fn strip_html_tags(html: &str) -> String {
+    let mut result = String::with_capacity(html.len());
+    let mut in_tag = false;
+    for ch in html.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => result.push(ch),
+            _ => {}
+        }
+    }
+    result
 }
 
 pub(crate) fn get_git_last_updated(file_path: &Path) -> Option<String> {

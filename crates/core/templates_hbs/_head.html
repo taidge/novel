@@ -1,0 +1,31 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{#if page}}{{ page.title }} | {{ site.title }}{{else}}{{ site.title }}{{/if}}</title>
+<meta name="description" content="{{#if page}}{{ page.description }}{{else}}{{ site.description }}{{/if}}">
+{{#if site.icon}}<link rel="icon" href="{{ site.icon }}">{{/if}}
+<link rel="stylesheet" href="{{ site.base }}assets/{{ asset_css }}">
+{{#if theme_css_overrides}}<style>:root, [data-theme="light"] { {{{ theme_css_overrides }}} }</style>{{/if}}
+{{#if custom_css_content}}<style>{{{ custom_css_content }}}</style>{{/if}}
+<script src="{{ site.base }}assets/{{ asset_js }}" defer></script>
+{{#if site.site_url}}<link rel="alternate" type="application/atom+xml" title="{{ site.title }}" href="{{ site.base }}feed.xml">{{/if}}
+{{#if site.site_url}}<link rel="sitemap" type="application/xml" title="Sitemap" href="{{ site.base }}sitemap.xml">{{/if}}
+{{#if page}}
+{{#if site.site_url}}
+<meta property="og:title" content="{{ page.title }}">
+<meta property="og:description" content="{{ page.description }}">
+<meta property="og:type" content="article">
+<meta property="og:url" content="{{ site.site_url }}{{ page.route.route_path }}">
+{{#if page.frontmatter.og_image}}<meta property="og:image" content="{{ page.frontmatter.og_image }}">{{/if}}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ page.title }}">
+<meta name="twitter:description" content="{{ page.description }}">
+{{#if page.frontmatter.og_image}}<meta name="twitter:image" content="{{ page.frontmatter.og_image }}">{{/if}}
+{{/if}}
+{{#if page.frontmatter.canonical}}
+<link rel="canonical" href="{{ page.frontmatter.canonical }}">
+{{else}}
+{{#if site.site_url}}
+<link rel="canonical" href="{{ site.site_url }}{{ page.route.route_path }}">
+{{/if}}
+{{/if}}
+{{/if}}

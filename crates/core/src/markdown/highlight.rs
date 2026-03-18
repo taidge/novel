@@ -7,7 +7,7 @@ static SYNTAX_SET: Lazy<SyntaxSet> = Lazy::new(SyntaxSet::load_defaults_newlines
 static THEME_SET: Lazy<ThemeSet> = Lazy::new(ThemeSet::load_defaults);
 
 /// Highlight a code block and return HTML
-pub fn highlight_code(code: &str, lang: &str) -> String {
+pub fn highlight_code(code: &str, lang: &str, theme_name: &str) -> String {
     let ss = &*SYNTAX_SET;
     let ts = &*THEME_SET;
 
@@ -15,7 +15,10 @@ pub fn highlight_code(code: &str, lang: &str) -> String {
         .find_syntax_by_token(lang)
         .unwrap_or_else(|| ss.find_syntax_plain_text());
 
-    let theme = &ts.themes["base16-ocean.dark"];
+    let theme = ts
+        .themes
+        .get(theme_name)
+        .unwrap_or_else(|| &ts.themes["base16-ocean.dark"]);
 
     match highlighted_html_for_string(code, ss, syntax, theme) {
         Ok(html) => html,

@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}404 - Page Not Found | {{ site.title }}{% endblock %}
+{% block title %}{{ not_found_title | default("404") }} - {{ not_found_message | default("Page Not Found") }} | {{ site.title }}{% endblock %}
 
 {% block content %}
-<div class="not-found">
-    <h1>404</h1>
-    <p>Page not found</p>
+<div id="main-content" class="not-found">
+    <h1>{{ not_found_title | default("404") }}</h1>
+    <p>{{ not_found_message | default("Page not found") }}</p>
     <a href="{{ site.base }}">Go Home</a>
 </div>
 {% endblock %}

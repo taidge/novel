@@ -6,10 +6,10 @@
     <title>{% block title %}{{ site.title }}{% endblock %}</title>
     <meta name="description" content="{% block description %}{{ site.description }}{% endblock %}">
     {% if site.icon %}<link rel="icon" href="{{ site.icon }}">{% endif %}
-    <link rel="stylesheet" href="{{ site.base }}assets/{{ asset_css | default('style.css') }}">
+    <link rel="stylesheet" href="{{ site.base }}assets/{{ asset_css | default(value="style.css") }}">
     {% if theme_css_overrides %}<style>:root, [data-theme="light"] { {{ theme_css_overrides | safe }} }</style>{% endif %}
     {% if custom_css_content %}<style>{{ custom_css_content | safe }}</style>{% endif %}
-    <script src="{{ site.base }}assets/{{ asset_js | default('main.js') }}" defer></script>
+    <script src="{{ site.base }}assets/{{ asset_js | default(value="main.js") }}" defer></script>
     {% if site.site_url %}<link rel="alternate" type="application/atom+xml" title="{{ site.title }}" href="{{ site.base }}feed.xml">{% endif %}
     {% if site.site_url %}<link rel="sitemap" type="application/xml" title="Sitemap" href="{{ site.base }}sitemap.xml">{% endif %}
     {% if site.markdown.math %}

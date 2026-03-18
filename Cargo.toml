@@ -45,6 +45,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Embedding
 rust-embed = "8"
 
+# Alternative template engines
+tera = "1"
+handlebars = "6"
+
 # Utilities
 anyhow = "1"
 thiserror = "2"

@@ -8,7 +8,7 @@
     <section class="hero">
         {% if page.frontmatter.hero.image %}
         <div class="hero-image">
-            <img src="{{ page.frontmatter.hero.image.src }}" alt="{{ page.frontmatter.hero.image.alt | default('') }}">
+            <img src="{{ page.frontmatter.hero.image.src }}" alt="{{ page.frontmatter.hero.image.alt | default(value="") }}">
         </div>
         {% endif %}
         <h1 class="hero-name">{{ page.frontmatter.hero.name }}</h1>
@@ -21,7 +21,7 @@
         {% if page.frontmatter.hero.actions %}
         <div class="hero-actions">
             {% for action in page.frontmatter.hero.actions %}
-            <a href="{{ action.link }}" class="hero-action {{ action.theme | default('brand') }}">{{ action.text }}</a>
+            <a href="{{ action.link }}" class="hero-action {{ action.theme | default(value="brand") }}">{{ action.text }}</a>
             {% endfor %}
         </div>
         {% endif %}

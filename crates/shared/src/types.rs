@@ -11,6 +11,9 @@ pub struct RouteMeta {
     pub relative_path: String,
     /// Page name (file stem)
     pub page_name: String,
+    /// Locale code for i18n (e.g. "en", "zh")
+    #[serde(default)]
+    pub locale: Option<String>,
 }
 
 /// Table of contents entry
@@ -46,6 +49,18 @@ pub struct FrontMatter {
     /// Custom head tags for this page
     #[serde(default)]
     pub head: Option<Vec<HeadTag>>,
+    /// Open Graph image URL
+    #[serde(default)]
+    pub og_image: Option<String>,
+    /// Canonical URL override
+    #[serde(default)]
+    pub canonical: Option<String>,
+    /// Alternative URLs that redirect here
+    #[serde(default)]
+    pub aliases: Vec<String>,
+    /// This page redirects to another URL
+    #[serde(default)]
+    pub redirect: Option<String>,
 }
 
 /// Custom HTML head tag
@@ -133,6 +148,15 @@ pub struct PageData {
     /// Next page in navigation order
     #[serde(default)]
     pub next_page: Option<PageLink>,
+    /// Estimated reading time in minutes
+    #[serde(default)]
+    pub reading_time: Option<u32>,
+    /// Word count of plain text content
+    #[serde(default)]
+    pub word_count: Option<u32>,
+    /// Breadcrumb navigation trail
+    #[serde(default)]
+    pub breadcrumbs: Vec<PageLink>,
 }
 
 /// Sidebar item - can be a link, group, or divider
@@ -168,6 +192,14 @@ pub struct SocialLink {
     pub link: String,
 }
 
+/// A section of content under a heading, used for section-level search
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchSection {
+    pub heading: String,
+    pub anchor: String,
+    pub content: String,
+}
+
 /// Search index entry for client-side search
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchIndexEntry {
@@ -176,6 +208,8 @@ pub struct SearchIndexEntry {
     pub description: String,
     pub headers: Vec<String>,
     pub content: String,
+    #[serde(default)]
+    pub sections: Vec<SearchSection>,
 }
 
 /// Banner configuration

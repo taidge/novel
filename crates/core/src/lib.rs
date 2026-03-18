@@ -1,4 +1,5 @@
 pub mod builder;
+pub mod cache;
 pub mod error;
 pub mod markdown;
 pub mod plugin;
@@ -188,6 +189,12 @@ impl Novel for DirNovel {
             p.on_config(&mut self.config);
         }
 
+        // Plugin: configure from [plugins.<name>] config
+        for p in self.plugins.iter_mut() {
+            let val = self.config.plugins.get(p.name());
+            p.configure(val);
+        }
+
         let docs_root = self.config.docs_root(&self.project_root);
         if !docs_root.exists() {
             anyhow::bail!(
@@ -196,18 +203,145 @@ impl Novel for DirNovel {
             );
         }
 
-        let source = DirSource::new(docs_root.clone());
-        let mut br = build_pages(&source, &self.config, Some(&self.project_root), &self.plugins)?;
+        let mut all_pages = Vec::new();
+        let mut merged_nav = Vec::new();
+        let mut merged_sidebar = HashMap::new();
 
-        // Git timestamps (DirNovel-specific)
-        if self.config.theme.last_updated {
-            for page in &mut br.pages {
-                let file_path = docs_root.join(&page.route.relative_path);
-                page.last_updated = get_git_last_updated(&file_path);
+        if let Some(ref i18n) = self.config.i18n {
+            // i18n multi-locale build
+            for locale in &i18n.locales {
+                let locale_docs = docs_root.join(&locale.dir);
+                if !locale_docs.exists() {
+                    tracing::warn!(
+                        "Locale docs directory does not exist: {}",
+                        locale_docs.display()
+                    );
+                    continue;
+                }
+
+                let source = DirSource::new(locale_docs.clone());
+                let mut locale_config = self.config.clone();
+
+                // Apply locale-specific overrides
+                if let Some(ref title) = locale.title {
+                    locale_config.title = title.clone();
+                }
+                if let Some(ref desc) = locale.description {
+                    locale_config.description = desc.clone();
+                }
+                if let Some(ref theme_overrides) = locale.theme {
+                    if let Some(ref nav) = theme_overrides.nav {
+                        locale_config.theme.nav = nav.clone();
+                    }
+                    if let Some(ref sidebar) = theme_overrides.sidebar {
+                        locale_config.theme.sidebar = sidebar.clone();
+                    }
+                    if let Some(ref footer) = theme_overrides.footer {
+                        locale_config.theme.footer = Some(footer.clone());
+                    }
+                    if let Some(ref text) = theme_overrides.edit_link_text {
+                        locale_config.theme.edit_link_text = Some(text.clone());
+                    }
+                    if let Some(ref text) = theme_overrides.last_updated_text {
+                        locale_config.theme.last_updated_text = Some(text.clone());
+                    }
+                }
+
+                let mut br = build_pages(
+                    &source,
+                    &locale_config,
+                    Some(&self.project_root),
+                    &self.plugins,
+                )?;
+
+                // Prefix all routes with /<locale.code>/
+                let prefix = format!("/{}", locale.code);
+                for page in &mut br.pages {
+                    if page.route.route_path == "/" {
+                        page.route.route_path = format!("{}/", prefix);
+                    } else {
+                        page.route.route_path =
+                            format!("{}{}", prefix, page.route.route_path);
+                    }
+                    page.route.locale = Some(locale.code.clone());
+
+                    // Update prev/next links
+                    if let Some(ref mut prev) = page.prev_page {
+                        if prev.link == "/" {
+                            prev.link = format!("{}/", prefix);
+                        } else {
+                            prev.link = format!("{}{}", prefix, prev.link);
+                        }
+                    }
+                    if let Some(ref mut next) = page.next_page {
+                        if next.link == "/" {
+                            next.link = format!("{}/", prefix);
+                        } else {
+                            next.link = format!("{}{}", prefix, next.link);
+                        }
+                    }
+
+                    // Update breadcrumb links
+                    for crumb in &mut page.breadcrumbs {
+                        if crumb.link == "/" {
+                            crumb.link = format!("{}/", prefix);
+                        } else {
+                            crumb.link = format!("{}{}", prefix, crumb.link);
+                        }
+                    }
+                }
+
+                // Git timestamps
+                if self.config.theme.last_updated {
+                    for page in &mut br.pages {
+                        let file_path = locale_docs.join(&page.route.relative_path);
+                        page.last_updated = get_git_last_updated(&file_path);
+                    }
+                }
+
+                // Prefix sidebar keys
+                let locale_sidebar: HashMap<String, Vec<SidebarItem>> = br
+                    .sidebar
+                    .into_iter()
+                    .map(|(k, v)| (format!("{}{}", prefix, k), v))
+                    .collect();
+
+                all_pages.extend(br.pages);
+                if locale.code == i18n.default_locale {
+                    merged_nav = br.nav;
+                }
+                merged_sidebar.extend(locale_sidebar);
             }
+        } else {
+            // Standard single-locale build
+            let source = DirSource::new(docs_root.clone());
+            let mut br = build_pages(
+                &source,
+                &self.config,
+                Some(&self.project_root),
+                &self.plugins,
+            )?;
+
+            // Git timestamps (DirNovel-specific)
+            if self.config.theme.last_updated {
+                for page in &mut br.pages {
+                    let file_path = docs_root.join(&page.route.relative_path);
+                    page.last_updated = get_git_last_updated(&file_path);
+                }
+            }
+
+            all_pages = br.pages;
+            merged_nav = br.nav;
+            merged_sidebar = br.sidebar;
         }
 
-        let engine = TemplateEngine::new(Some(&self.project_root), &self.plugins)?;
+        let source = DirSource::new(docs_root);
+
+        let engine = TemplateEngine::new(
+            Some(&self.project_root),
+            &self.plugins,
+            &self.config,
+        )?;
 
         // Take plugins out of self to move into BuiltSite
         let plugins = std::mem::take(&mut self.plugins);
@@ -215,9 +349,9 @@ impl Novel for DirNovel {
         Ok(BuiltSite {
             config: self.config.clone(),
             project_root: Some(self.project_root.clone()),
-            pages: br.pages,
-            nav: br.nav,
-            sidebar: br.sidebar,
+            pages: all_pages,
+            nav: merged_nav,
+            sidebar: merged_sidebar,
             engine,
             source: Box::new(source),
             plugins,
@@ -334,9 +468,15 @@ impl<E: Embed + Send + Sync + 'static> Novel for EmbedNovel<E> {
             p.on_config(&mut self.config);
         }
 
+        // Plugin: configure from [plugins.<name>] config
+        for p in self.plugins.iter_mut() {
+            let val = self.config.plugins.get(p.name());
+            p.configure(val);
+        }
+
         let source = EmbedSource::<E>::new();
         let br = build_pages(&source, &self.config, None, &self.plugins)?;
-        let engine = TemplateEngine::new(None, &self.plugins)?;
+        let engine = TemplateEngine::new(None, &self.plugins, &self.config)?;
 
         let plugins = std::mem::take(&mut self.plugins);
 
@@ -475,6 +615,7 @@ impl BuiltSite {
             pages: &self.pages,
             nav: &self.nav,
             sidebar: &self.sidebar,
+            project_root: self.project_root.as_deref(),
         }
     }
 
@@ -492,11 +633,22 @@ impl BuiltSite {
         }
         std::fs::create_dir_all(output_dir)?;
 
-        // Assets
+        // Assets (with optional fingerprinting)
         let assets_dir = output_dir.join("assets");
         std::fs::create_dir_all(&assets_dir)?;
-        std::fs::write(assets_dir.join("style.css"), CSS_CONTENT)?;
-        std::fs::write(assets_dir.join("main.js"), JS_CONTENT)?;
+
+        let (css_filename, js_filename) = if self.config.asset_fingerprint {
+            let css_hash = &format!("{:08x}", simple_hash(CSS_CONTENT.as_bytes()));
+            let js_hash = &format!("{:08x}", simple_hash(JS_CONTENT.as_bytes()));
+            let css_name = format!("style.{}.css", css_hash);
+            let js_name = format!("main.{}.js", js_hash);
+            (css_name, js_name)
+        } else {
+            ("style.css".to_string(), "main.js".to_string())
+        };
+
+        std::fs::write(assets_dir.join(&css_filename), CSS_CONTENT)?;
+        std::fs::write(assets_dir.join(&js_filename), JS_CONTENT)?;
 
         // Pages
         for page in &self.pages {
@@ -525,6 +677,34 @@ impl BuiltSite {
                 std::fs::write(&dest, contents)?;
                 info!("Plugin '{}' generated: {}", plugin.name(), rel_path);
             }
+        }
+
+        // i18n root redirect
+        if let Some(ref i18n) = self.config.i18n {
+            let default_locale = &i18n.default_locale;
+            let redirect_html = format!(
+                r#"<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<script>
+var lang = navigator.language || navigator.userLanguage || '';
+var locales = [{}];
+var match = locales.find(function(l) {{ return lang.toLowerCase().startsWith(l); }});
+window.location.replace('/' + (match || '{}') + '/');
+</script>
+<meta http-equiv="refresh" content="0; url=/{default_locale}/">
+</head>
+<body><p>Redirecting...</p></body>
+</html>"#,
+                i18n.locales
+                    .iter()
+                    .map(|l| format!("'{}'", l.code))
+                    .collect::<Vec<_>>()
+                    .join(","),
+                default_locale,
+            );
+            std::fs::write(output_dir.join("index.html"), redirect_html)?;
         }
 
         // Static assets from docs source
@@ -571,6 +751,16 @@ impl BuiltSite {
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
+
+/// Simple non-cryptographic hash for asset fingerprinting (FNV-1a).
+fn simple_hash(data: &[u8]) -> u64 {
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for &byte in data {
+        hash ^= byte as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
+}
 
 fn find_sidebar_key(
     route_path: &str,
