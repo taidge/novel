@@ -754,19 +754,41 @@ a:hover {
     border-bottom: 1px solid var(--border-color);
 }
 
+.code-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-1) var(--space-3);
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+}
+
 .code-lang-label {
-    position: absolute;
-    top: var(--space-2);
-    right: 64px;
     font-size: 0.7rem;
     color: var(--text-muted);
     text-transform: uppercase;
 }
 
-.copy-btn {
+.code-block-header .copy-btn {
+    position: static;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.code-block-header:hover .copy-btn { opacity: 1; }
+
+/* Standalone copy button (no language label) */
+.code-block > .copy-btn {
     position: absolute;
     top: var(--space-2);
     right: var(--space-2);
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.code-block:hover > .copy-btn { opacity: 1; }
+
+.copy-btn {
     padding: var(--space-1) 10px;
     font-size: var(--font-size-xs);
     background: var(--bg-secondary);
@@ -774,15 +796,9 @@ a:hover {
     border-radius: var(--radius-sm);
     cursor: pointer;
     color: var(--text-secondary);
-    opacity: 0;
-    transition: opacity var(--transition-fast);
 }
-.code-block:hover .copy-btn { opacity: 1; }
-.copy-btn:hover { background: var(--bg-tertiary); }
 
-/* Code block with title adjustment */
-.code-block-title + .code-lang-label { top: auto; }
-.code-block-title ~ .copy-btn { top: auto; }
+.copy-btn:hover { background: var(--bg-tertiary); }
 
 /* ========== Line Numbers ========== */
 .code-block.with-line-numbers .code-line {

@@ -338,13 +338,16 @@ fn build_code_block_html(
         html.push_str(&format!("<div class=\"code-block-title\">{}</div>", title));
     }
 
-    // Language label
-    if !lang.is_empty() {
+    // Header with language label and copy button
+    let has_header = !lang.is_empty();
+    if has_header {
+        html.push_str("<div class=\"code-block-header\">");
         html.push_str(&format!("<span class=\"code-lang-label\">{}</span>", lang));
+        html.push_str("<button class=\"copy-btn\" onclick=\"navigator.clipboard.writeText(this.closest('.code-block').querySelector('pre').textContent)\">Copy</button>");
+        html.push_str("</div>");
+    } else {
+        html.push_str("<button class=\"copy-btn\" onclick=\"navigator.clipboard.writeText(this.closest('.code-block').querySelector('pre').textContent)\">Copy</button>");
     }
-
-    // Copy button
-    html.push_str("<button class=\"copy-btn\" onclick=\"navigator.clipboard.writeText(this.parentElement.querySelector('pre').textContent)\">Copy</button>");
 
     // If we need line numbers or highlighted lines, wrap in a custom structure
     if show_line_numbers || !highlighted_lines.is_empty() || is_diff {
