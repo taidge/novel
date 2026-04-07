@@ -26,6 +26,10 @@
     <meta property="og:type" content="article">
     <meta property="og:url" content="{{ site.site_url }}{{ page.route.route_path }}">
     {% if page.frontmatter.og_image %}<meta property="og:image" content="{{ page.frontmatter.og_image }}">{% endif %}
+    {% if page.date %}<meta property="article:published_time" content="{{ page.date }}">{% endif %}
+    {% if page.frontmatter.updated %}<meta property="article:modified_time" content="{{ page.frontmatter.updated }}">{% endif %}
+    {% for author in page.frontmatter.authors %}<meta property="article:author" content="{{ author }}">{% endfor %}
+    {% for tag in page.frontmatter.tags %}<meta property="article:tag" content="{{ tag }}">{% endfor %}
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ page.title }}">
     <meta name="twitter:description" content="{{ page.description }}">

@@ -1,5 +1,6 @@
 use crate::plugin::{BuiltSiteView, Plugin};
-use novel_shared::PageType;
+use novel_shared::{PageData, PageType};
+use std::collections::BTreeSet;
 
 pub struct FeedPlugin;
 
@@ -9,10 +10,25 @@ impl Plugin for FeedPlugin {
     }
 
     fn on_build_complete(&self, site: &BuiltSiteView) -> Vec<(String, Vec<u8>)> {
-        match generate_feed_xml(site) {
-            Some(xml) => vec![("feed.xml".to_string(), xml.into_bytes())],
-            None => vec![],
+        let mut out = Vec::new();
+        if let Some(xml) = generate_feed_xml(site) {
+            out.push(("feed.xml".to_string(), xml.into_bytes()));
         }
+
+        // Per-collection feeds: one feed.xml per collection that has the
+        // `feed = true` flag in its _collection.toml. Discovered by scanning
+        // pages for `collection` field.
+        let collections: BTreeSet<String> = site
+            .pages
+            .iter()
+            .filter_map(|p| p.collection.clone())
+            .collect();
+        for col in collections {
+            if let Some(xml) = generate_collection_feed_xml(site, &col) {
+                out.push((format!("{}/feed.xml", col), xml.into_bytes()));
+            }
+        }
+        out
     }
 }
 
@@ -61,6 +77,68 @@ pub fn generate_feed_xml(site: &BuiltSiteView) -> Option<String> {
             xml.push_str(&format!("    <updated>{}T00:00:00Z</updated>\n", date));
         }
         if !page.description.is_empty() {
+            xml.push_str(&format!(
+                "    <summary>{}</summary>\n",
+                xml_escape(&page.description)
+            ));
+        }
+        xml.push_str("  </entry>\n");
+    }
+
+    xml.push_str("</feed>\n");
+    Some(xml)
+}
+
+/// Build an Atom feed scoped to a single collection.
+pub fn generate_collection_feed_xml(site: &BuiltSiteView, collection: &str) -> Option<String> {
+    let base_url = site.config.site_url.as_deref()?.trim_end_matches('/');
+    if base_url.is_empty() {
+        return None;
+    }
+
+    let entries: Vec<&PageData> = site
+        .pages
+        .iter()
+        .filter(|p| p.collection.as_deref() == Some(collection))
+        .collect();
+    if entries.is_empty() {
+        return None;
+    }
+
+    let title = format!("{} — {}", site.config.title, collection);
+    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    xml.push_str("<feed xmlns=\"http://www.w3.org/2005/Atom\">\n");
+    xml.push_str(&format!("  <title>{}</title>\n", xml_escape(&title)));
+    xml.push_str(&format!(
+        "  <link href=\"{}/{}/\" rel=\"alternate\"/>\n",
+        base_url, collection
+    ));
+    xml.push_str(&format!(
+        "  <link href=\"{}/{}/feed.xml\" rel=\"self\"/>\n",
+        base_url, collection
+    ));
+    xml.push_str(&format!("  <id>{}/{}/</id>\n", base_url, collection));
+
+    for page in entries {
+        let url = format!("{}{}", base_url, &page.route.route_path);
+        xml.push_str("  <entry>\n");
+        xml.push_str(&format!(
+            "    <title>{}</title>\n",
+            xml_escape(&page.title)
+        ));
+        xml.push_str(&format!("    <link href=\"{}\"/>\n", url));
+        xml.push_str(&format!("    <id>{}</id>\n", url));
+        if let Some(ref date) = page.date {
+            xml.push_str(&format!("    <updated>{}T00:00:00Z</updated>\n", date));
+        } else if let Some(ref date) = page.last_updated {
+            xml.push_str(&format!("    <updated>{}T00:00:00Z</updated>\n", date));
+        }
+        if let Some(ref summary) = page.summary_html {
+            xml.push_str(&format!(
+                "    <summary type=\"html\">{}</summary>\n",
+                xml_escape(summary)
+            ));
+        } else if !page.description.is_empty() {
             xml.push_str(&format!(
                 "    <summary>{}</summary>\n",
                 xml_escape(&page.description)
