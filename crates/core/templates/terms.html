@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}{{ list_title }} | {{ site.title }}{% endblock %}
+{% block description %}{{ list_title }}{% endblock %}
+
+{% block content %}
+<div class="blog-layout">
+    <main id="main-content" class="blog-content">
+        <header class="blog-header">
+            <h1>{{ list_title }}</h1>
+        </header>
+        <ul class="term-cloud">
+        {% for term in terms %}
+            <li><a href="{{ term.link }}">{{ term.name }}</a> <span class="term-count">({{ term.count }})</span></li>
+        {% endfor %}
+        </ul>
+    </main>
+</div>
+{% endblock %}

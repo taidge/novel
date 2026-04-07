@@ -66,6 +66,7 @@ impl TypstProcessor {
             description,
             content_html,
             toc,
+            date: frontmatter.date.clone(),
             frontmatter,
             last_updated: None,
             prev_page: None,
@@ -73,6 +74,8 @@ impl TypstProcessor {
             reading_time: None,
             word_count: None,
             breadcrumbs: Vec::new(),
+            summary_html: None,
+            collection: None,
         })
     }
 }

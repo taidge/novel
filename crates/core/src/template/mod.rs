@@ -10,8 +10,18 @@ use novel_shared::{NavItem, PageData, SidebarItem, TocItem};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
+use crate::pagination::Paginator;
 use crate::plugin::Plugin;
 use crate::{CSS_CONTENT, JS_CONTENT};
+
+/// Item shown on a taxonomy overview (`terms.html`).
+#[derive(Serialize, Clone)]
+pub struct TermSummary {
+    pub name: String,
+    pub slug: String,
+    pub link: String,
+    pub count: usize,
+}
 
 /// Serializable render context passed to all template engines.
 #[derive(Serialize)]
@@ -30,6 +40,15 @@ pub struct RenderContext<'a> {
     pub asset_js: &'a str,
     pub not_found_title: &'a str,
     pub not_found_message: &'a str,
+    /// Pagination data for list / term pages
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paginator: Option<&'a Paginator>,
+    /// Term list for taxonomy overview pages
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub terms: Option<&'a [TermSummary]>,
+    /// Title for list / term / terms pages
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub list_title: Option<String>,
 }
 
 /// Trait for pluggable template engine backends.
@@ -166,7 +185,38 @@ impl TemplateEngine {
                 .not_found_message
                 .as_deref()
                 .unwrap_or("Page not found"),
+            paginator: None,
+            terms: None,
+            list_title: None,
         }
+    }
+
+    /// Render a list / term page using a paginator.
+    pub fn render_list(
+        &self,
+        title: String,
+        paginator: &Paginator,
+        config: &SiteConfig,
+        nav: &[NavItem],
+    ) -> Result<String> {
+        let mut ctx = self.base_context(config, nav);
+        ctx.paginator = Some(paginator);
+        ctx.list_title = Some(title);
+        self.renderer.render("list.html", &ctx)
+    }
+
+    /// Render a taxonomy overview page (e.g. /tags/).
+    pub fn render_terms(
+        &self,
+        title: String,
+        terms: &[TermSummary],
+        config: &SiteConfig,
+        nav: &[NavItem],
+    ) -> Result<String> {
+        let mut ctx = self.base_context(config, nav);
+        ctx.terms = Some(terms);
+        ctx.list_title = Some(title);
+        self.renderer.render("terms.html", &ctx)
     }
 
     // -- public render methods (unchanged API) ------------------------------

@@ -30,3 +30,4 @@ globset = { workspace = true }
 rust-embed = { workspace = true }
 tera = { workspace = true, optional = true }
 handlebars = { workspace = true, optional = true }
+toml = { workspace = true }

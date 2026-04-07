@@ -70,8 +70,17 @@ impl MarkdownProcessor {
             Err(_) => (FrontMatter::default(), raw_content.to_string()),
         };
 
+        // 2a. Extract summary from <!-- more --> separator (if present)
+        let summary_separator = "<!-- more -->";
+        let (summary_md, body_for_processing) =
+            if let Some(idx) = markdown_body.find(summary_separator) {
+                (Some(markdown_body[..idx].to_string()), markdown_body.clone())
+            } else {
+                (None, markdown_body.clone())
+            };
+
         // 2. Pre-process container directives (including tabs, steps, badges)
-        let processed = preprocess_containers(&markdown_body, &self.custom_directives);
+        let processed = preprocess_containers(&body_for_processing, &self.custom_directives);
 
         // 3. Parse markdown and collect events
         let options = Options::ENABLE_GFM
@@ -292,6 +301,17 @@ impl MarkdownProcessor {
 
         let description = frontmatter.description.clone().unwrap_or_default();
 
+        // Build summary HTML: prefer frontmatter.summary, then <!-- more --> split, else None
+        let summary_html = if let Some(s) = frontmatter.summary.clone() {
+            Some(render_simple_markdown(&s))
+        } else if let Some(md) = summary_md {
+            Some(render_simple_markdown(&md))
+        } else {
+            None
+        };
+
+        let date = frontmatter.date.clone();
+
         Ok(PageData {
             route,
             title,
@@ -305,6 +325,9 @@ impl MarkdownProcessor {
             reading_time: None,
             word_count: None,
             breadcrumbs: Vec::new(),
+            summary_html,
+            collection: None,
+            date,
         })
     }
 }
@@ -441,6 +464,14 @@ fn html_escape(s: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
+}
+
+/// Minimal markdown -> HTML for summaries (no plugins / highlight).
+fn render_simple_markdown(md: &str) -> String {
+    let parser = Parser::new_ext(md, Options::ENABLE_GFM | Options::ENABLE_TABLES);
+    let mut out = String::new();
+    html::push_html(&mut out, parser);
+    out
 }
 
 /// Render a slice of pulldown-cmark events to an HTML string

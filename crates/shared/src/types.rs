@@ -61,6 +61,38 @@ pub struct FrontMatter {
     /// This page redirects to another URL
     #[serde(default)]
     pub redirect: Option<String>,
+
+    // -- General SSG fields --
+    /// Publish date (YYYY-MM-DD or RFC3339)
+    #[serde(default)]
+    pub date: Option<String>,
+    /// Last updated date
+    #[serde(default)]
+    pub updated: Option<String>,
+    /// Mark as draft (excluded from build unless --drafts)
+    #[serde(default)]
+    pub draft: bool,
+    /// Sort weight inside collections (smaller = earlier)
+    #[serde(default)]
+    pub weight: Option<i64>,
+    /// Manual summary (overrides <!-- more --> extraction)
+    #[serde(default)]
+    pub summary: Option<String>,
+    /// Tags
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// Categories
+    #[serde(default)]
+    pub categories: Vec<String>,
+    /// Series identifier
+    #[serde(default)]
+    pub series: Option<String>,
+    /// Authors
+    #[serde(default)]
+    pub authors: Vec<String>,
+    /// Expiry date — page excluded after this date unless --future
+    #[serde(default)]
+    pub expiry_date: Option<String>,
 }
 
 /// Custom HTML head tag
@@ -157,6 +189,15 @@ pub struct PageData {
     /// Breadcrumb navigation trail
     #[serde(default)]
     pub breadcrumbs: Vec<PageLink>,
+    /// HTML summary (first paragraph or split by <!-- more -->)
+    #[serde(default)]
+    pub summary_html: Option<String>,
+    /// Collection name this page belongs to (e.g. "posts")
+    #[serde(default)]
+    pub collection: Option<String>,
+    /// Resolved date (from frontmatter.date or git)
+    #[serde(default)]
+    pub date: Option<String>,
 }
 
 /// Sidebar item - can be a link, group, or divider

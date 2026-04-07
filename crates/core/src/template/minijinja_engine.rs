@@ -6,13 +6,15 @@ use std::path::{Component, Path, PathBuf};
 use super::{RenderContext, TemplateRenderer};
 use crate::plugin::Plugin;
 
-const REQUIRED_TEMPLATES: [&str; 6] = [
+const REQUIRED_TEMPLATES: [&str; 8] = [
     "base.html",
     "doc.html",
     "home.html",
     "page.html",
     "blog.html",
     "404.html",
+    "list.html",
+    "terms.html",
 ];
 
 #[derive(Embed)]

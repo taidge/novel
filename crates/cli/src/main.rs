@@ -38,6 +38,12 @@ enum Commands {
         /// Force full rebuild (bypass cache)
         #[arg(long)]
         force: bool,
+        /// Include draft pages
+        #[arg(long)]
+        drafts: bool,
+        /// Include pages with future dates
+        #[arg(long)]
+        future: bool,
     },
     /// Preview the built site locally
     Preview {
@@ -80,9 +86,16 @@ async fn main() -> Result<()> {
         Commands::Dev { port } => {
             dev::run_dev_server(&project_root, port).await?;
         }
-        Commands::Build { force: _ } => {
+        Commands::Build { force: _, drafts, future } => {
             info!("Building site...");
-            let site = novel_core::DirNovel::load(&project_root)?
+            let mut novel = novel_core::DirNovel::load(&project_root)?;
+            {
+                // Apply CLI overrides for content config
+                let cfg = novel.config_mut();
+                if drafts { cfg.content.drafts = true; }
+                if future { cfg.content.future = true; }
+            }
+            let site = novel
                 .plugin(novel_core::plugins::SitemapPlugin)
                 .plugin(novel_core::plugins::FeedPlugin)
                 .plugin(novel_core::plugins::SearchIndexPlugin)

@@ -47,6 +47,75 @@ pub struct SiteConfig {
     /// Internationalization configuration
     #[serde(default)]
     pub i18n: Option<I18nConfig>,
+    /// General content / collection behaviour
+    #[serde(default)]
+    pub content: ContentConfig,
+    /// Taxonomies (e.g. tags, categories)
+    #[serde(default)]
+    pub taxonomies: HashMap<String, TaxonomyConfig>,
+    /// Pagination defaults
+    #[serde(default)]
+    pub pagination: PaginationConfig,
+}
+
+/// General content config (drafts, future, summary separator).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ContentConfig {
+    pub drafts: bool,
+    pub future: bool,
+    pub summary_separator: String,
+}
+
+impl Default for ContentConfig {
+    fn default() -> Self {
+        Self {
+            drafts: false,
+            future: false,
+            summary_separator: "<!-- more -->".to_string(),
+        }
+    }
+}
+
+/// Taxonomy configuration (e.g. tags, categories).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TaxonomyConfig {
+    pub name: String,
+    /// Permalink template, supports `{slug}`. Default `/<key>/{slug}/`.
+    pub permalink: Option<String>,
+    pub paginate_by: Option<usize>,
+    pub feed: bool,
+}
+
+impl Default for TaxonomyConfig {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            permalink: None,
+            paginate_by: None,
+            feed: false,
+        }
+    }
+}
+
+/// Pagination configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PaginationConfig {
+    /// Path segment used for paginated subpages, e.g. "page" -> /posts/page/2/
+    pub page_path: String,
+    /// Whether the first page is at the collection root (rather than /page/1/).
+    pub first_page_in_root: bool,
+}
+
+impl Default for PaginationConfig {
+    fn default() -> Self {
+        Self {
+            page_path: "page".to_string(),
+            first_page_in_root: true,
+        }
+    }
 }
 
 impl Default for SiteConfig {
@@ -69,6 +138,9 @@ impl Default for SiteConfig {
             asset_fingerprint: false,
             template_engine: default_template_engine(),
             i18n: None,
+            content: ContentConfig::default(),
+            taxonomies: HashMap::new(),
+            pagination: PaginationConfig::default(),
         }
     }
 }

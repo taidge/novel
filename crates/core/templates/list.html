@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}{{ list_title }} | {{ site.title }}{% endblock %}
+{% block description %}{{ list_title }}{% endblock %}
+
+{% block content %}
+<div class="blog-layout">
+    <main id="main-content" class="blog-content">
+        <header class="blog-header">
+            <h1>{{ list_title }}</h1>
+            {% if paginator.total_pages > 1 %}
+            <p class="list-meta">Page {{ paginator.current }} / {{ paginator.total_pages }} · {{ paginator.total_items }} items</p>
+            {% endif %}
+        </header>
+
+        <ul class="post-list">
+        {% for item in paginator.items %}
+            <li class="post-list-item">
+                <h2><a href="{{ item.link }}">{{ item.title }}</a></h2>
+                {% if item.date %}<time class="post-date">{{ item.date }}</time>{% endif %}
+                {% if item.summary_html %}<div class="post-summary">{{ item.summary_html|safe }}</div>{% endif %}
+            </li>
+        {% endfor %}
+        </ul>
+
+        {% if paginator.total_pages > 1 %}
+        <nav class="pagination">
+            {% if paginator.prev_url %}<a href="{{ paginator.prev_url }}" class="pagination-prev">← Newer</a>{% else %}<span></span>{% endif %}
+            <span class="pagination-info">{{ paginator.current }} / {{ paginator.total_pages }}</span>
+            {% if paginator.next_url %}<a href="{{ paginator.next_url }}" class="pagination-next">Older →</a>{% else %}<span></span>{% endif %}
+        </nav>
+        {% endif %}
+    </main>
+</div>
+{% endblock %}
