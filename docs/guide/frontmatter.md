@@ -16,6 +16,23 @@ description: A short description of this page
 | `title` | string | First `# heading` | Page title (used in `<title>` tag and sidebar) |
 | `description` | string | `""` | Page description (used in `<meta>` tag) |
 
+### Content / blog fields
+
+For blogs and content collections, the following extra fields are recognised. See [General SSG Mode](./general-ssg) for the full picture.
+
+| Field | Type | Description |
+|---|---|---|
+| `date` | `YYYY-MM-DD` | Publish date — used for sorting, archives, feeds, OG `article:published_time` |
+| `updated` | `YYYY-MM-DD` | Last-updated date — OG `article:modified_time` |
+| `draft` | bool | Excluded from build unless `--drafts` |
+| `weight` | int | Sort key for `sort_by = "weight"` |
+| `summary` | string | Manual summary (overrides the `<!-- more -->` separator) |
+| `tags` | list | Taxonomy entries (`/tags/<term>/`) |
+| `categories` | list | Taxonomy entries (`/categories/<term>/`) |
+| `series` | string | Series id — generates `/series/<slug>/` |
+| `authors` | list | Author names — OG `article:author` |
+| `expiry_date` | `YYYY-MM-DD` | Excluded after this date unless `--future` |
+
 ## Page Type
 
 Control the page layout with `page_type`:

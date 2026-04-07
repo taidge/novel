@@ -136,6 +136,41 @@ link = "/guide/getting-started"
 dismissible = true
 ```
 
+## General SSG Options
+
+Novel can build blogs and content sites in addition to documentation. The following sections are all optional and default to off. See [General SSG Mode](./general-ssg) for the full reference.
+
+```toml
+[content]
+drafts = false                 # include draft: true pages
+future = false                 # include pages with date > today
+summary_separator = "<!-- more -->"
+
+[pagination]
+page_path = "page"             # /posts/page/2/
+first_page_in_root = true      # first page lives at /posts/
+
+[taxonomies.tags]
+name = "Tags"
+
+[taxonomies.categories]
+name = "Categories"
+
+# Theme pack: extra template loader path
+[theme]
+pack = "./themes/midnight"
+
+# SCSS (requires `sass` cargo feature)
+[sass]
+entries    = [["assets/scss/main.scss", "assets/css/main.css"]]
+load_paths = ["assets/scss"]
+
+# Image resize (requires `images` cargo feature)
+[images]
+sizes   = [400, 800, 1600]
+quality = 82
+```
+
 ## Custom Templates
 
 Novel checks a `templates/` folder in your project root before falling back to the built-in embedded templates. Override only the files you need; any missing template still uses the default version.
