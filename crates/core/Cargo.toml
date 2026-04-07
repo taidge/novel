@@ -8,6 +8,8 @@ default = []
 salvo = ["dep:salvo"]
 tera = ["dep:tera"]
 handlebars = ["dep:handlebars"]
+sass = ["dep:grass"]
+images = ["dep:image"]
 
 [dependencies]
 salvo = { workspace = true, optional = true }
@@ -31,3 +33,5 @@ rust-embed = { workspace = true }
 tera = { workspace = true, optional = true }
 handlebars = { workspace = true, optional = true }
 toml = { workspace = true }
+grass = { workspace = true, optional = true }
+image = { workspace = true, optional = true }

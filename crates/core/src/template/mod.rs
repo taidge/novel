@@ -86,7 +86,11 @@ impl TemplateEngine {
     ) -> Result<Self> {
         let renderer: Box<dyn TemplateRenderer> = match config.template_engine.as_str() {
             "minijinja" | "" => {
-                Box::new(minijinja_engine::MiniJinjaRenderer::new(project_root, plugins)?)
+                Box::new(minijinja_engine::MiniJinjaRenderer::new(
+                    project_root,
+                    plugins,
+                    config,
+                )?)
             }
             #[cfg(feature = "tera")]
             "tera" => Box::new(tera_engine::TeraRenderer::new(project_root)?),

@@ -56,6 +56,41 @@ pub struct SiteConfig {
     /// Pagination defaults
     #[serde(default)]
     pub pagination: PaginationConfig,
+    /// Sass / SCSS compilation (requires `sass` feature)
+    #[serde(default)]
+    pub sass: SassConfig,
+    /// Image processing (requires `images` feature)
+    #[serde(default)]
+    pub images: ImagesConfig,
+}
+
+/// Sass entry/output mapping. Paths are relative to the project root.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SassConfig {
+    /// List of (input, output) pairs, e.g. `[["assets/scss/main.scss", "assets/css/main.css"]]`
+    pub entries: Vec<Vec<String>>,
+    /// Additional load paths (project-relative).
+    pub load_paths: Vec<String>,
+}
+
+/// Image processing config.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ImagesConfig {
+    /// Resize widths to generate, e.g. `[400, 800, 1600]`. Empty = disabled.
+    pub sizes: Vec<u32>,
+    /// JPEG/WebP quality (0-100). Default 82.
+    pub quality: u8,
+}
+
+impl Default for ImagesConfig {
+    fn default() -> Self {
+        Self {
+            sizes: Vec::new(),
+            quality: 82,
+        }
+    }
 }
 
 /// General content config (drafts, future, summary separator).
@@ -141,6 +176,8 @@ impl Default for SiteConfig {
             content: ContentConfig::default(),
             taxonomies: HashMap::new(),
             pagination: PaginationConfig::default(),
+            sass: SassConfig::default(),
+            images: ImagesConfig::default(),
         }
     }
 }

@@ -1,5 +1,6 @@
 use anyhow::Result;
-use minijinja::{Environment, Error as MiniJinjaError, ErrorKind};
+use minijinja::{Environment, Error as MiniJinjaError, ErrorKind, Value};
+use novel_shared::config::SiteConfig;
 use rust_embed::Embed;
 use std::path::{Component, Path, PathBuf};
 
@@ -77,7 +78,11 @@ pub struct MiniJinjaRenderer {
 }
 
 impl MiniJinjaRenderer {
-    pub fn new(project_root: Option<&Path>, plugins: &[Box<dyn Plugin>]) -> Result<Self> {
+    pub fn new(
+        project_root: Option<&Path>,
+        plugins: &[Box<dyn Plugin>],
+        config: &SiteConfig,
+    ) -> Result<Self> {
         let mut env = Environment::new();
         let template_dir = project_root.map(|p| p.join("templates"));
 
@@ -93,6 +98,50 @@ impl MiniJinjaRenderer {
         for name in REQUIRED_TEMPLATES {
             env.get_template(name)?;
         }
+
+        // Register built-in template shortcodes (asset_url, image_set).
+        let base = config.base.clone();
+        let base_for_asset = base.clone();
+        env.add_function("asset_url", move |path: String| -> Value {
+            let trimmed_base = base_for_asset.trim_end_matches('/');
+            let trimmed_path = path.trim_start_matches('/');
+            Value::from(format!("{}/{}", trimmed_base, trimmed_path))
+        });
+
+        let base_for_set = base.clone();
+        env.add_function(
+            "image_set",
+            move |path: String, sizes: Vec<u32>| -> Value {
+                let stem_dot_ext = std::path::Path::new(&path)
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("");
+                let (stem, ext) = match stem_dot_ext.rsplit_once('.') {
+                    Some((s, e)) => (s, e),
+                    None => (stem_dot_ext, ""),
+                };
+                let parent = std::path::Path::new(&path)
+                    .parent()
+                    .and_then(|p| p.to_str())
+                    .unwrap_or("");
+                let trimmed_base = base_for_set.trim_end_matches('/');
+                let parts: Vec<String> = sizes
+                    .iter()
+                    .map(|w| {
+                        let url = if parent.is_empty() {
+                            format!("{}/_resized/{}-{}.{}", trimmed_base, stem, w, ext)
+                        } else {
+                            format!(
+                                "{}/_resized/{}/{}-{}.{}",
+                                trimmed_base, parent, stem, w, ext
+                            )
+                        };
+                        format!("{} {}w", url, w)
+                    })
+                    .collect();
+                Value::from(parts.join(", "))
+            },
+        );
 
         for plugin in plugins {
             plugin.register_template_helpers(&mut env);

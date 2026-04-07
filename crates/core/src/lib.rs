@@ -1,3 +1,4 @@
+pub mod assets;
 pub mod builder;
 pub mod cache;
 pub mod content;
@@ -783,6 +784,13 @@ window.location.replace('/' + (match || '{}') + '/');
                 default_locale,
             );
             std::fs::write(output_dir.join("index.html"), redirect_html)?;
+        }
+
+        // Sass + image asset pipelines (no-op when feature/config disabled)
+        if let Some(ref root) = self.project_root {
+            assets::sass::compile(&self.config.sass, root, output_dir)?;
+            let docs_root = self.config.docs_root(root);
+            assets::images::process(&self.config.images, &docs_root, output_dir)?;
         }
 
         // Static assets from docs source

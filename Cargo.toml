@@ -55,5 +55,7 @@ anyhow = "1"
 thiserror = "2"
 rayon = "1"
 slug = "0.1"
+grass = { version = "0.13", default-features = false }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 regex = "1"
 once_cell = "1"
