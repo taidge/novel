@@ -1,6 +1,7 @@
 pub mod builder;
 pub mod cache;
 pub mod content;
+pub mod data;
 pub mod error;
 pub mod markdown;
 pub mod pagination;

@@ -40,6 +40,9 @@ pub struct RenderContext<'a> {
     pub asset_js: &'a str,
     pub not_found_title: &'a str,
     pub not_found_message: &'a str,
+    /// Site-wide data loaded from `<docs>/data/`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub site_data: Option<&'a serde_json::Value>,
     /// Pagination data for list / term pages
     #[serde(skip_serializing_if = "Option::is_none")]
     pub paginator: Option<&'a Paginator>,
@@ -66,6 +69,7 @@ pub struct TemplateEngine {
     project_root: Option<PathBuf>,
     css_filename: String,
     js_filename: String,
+    site_data: serde_json::Value,
 }
 
 impl TemplateEngine {
@@ -116,11 +120,19 @@ impl TemplateEngine {
             ("style.css".to_string(), "main.js".to_string())
         };
 
+        // Load data files from <project_root>/<docs_root>/data/ if available.
+        let site_data = match project_root {
+            Some(root) => crate::data::load_data(&root.join(&config.root))
+                .unwrap_or_else(|_| serde_json::Value::Object(Default::default())),
+            None => serde_json::Value::Object(Default::default()),
+        };
+
         Ok(Self {
             renderer,
             project_root: project_root.map(|p| p.to_path_buf()),
             css_filename,
             js_filename,
+            site_data,
         })
     }
 
@@ -188,6 +200,7 @@ impl TemplateEngine {
             paginator: None,
             terms: None,
             list_title: None,
+            site_data: Some(&self.site_data),
         }
     }
 
