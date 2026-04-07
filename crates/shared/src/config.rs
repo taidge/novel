@@ -330,6 +330,10 @@ pub struct ThemeConfig {
     pub colors: HashMap<String, String>,
     /// Path to a custom CSS file (relative to project root)
     pub custom_css: Option<String>,
+    /// Theme pack: local directory containing override templates (and
+    /// optionally assets). Searched after project `templates/` and before
+    /// the embedded defaults.
+    pub pack: Option<String>,
     /// Custom 404 page title
     pub not_found_title: Option<String>,
     /// Custom 404 page message

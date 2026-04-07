@@ -85,9 +85,22 @@ impl MiniJinjaRenderer {
     ) -> Result<Self> {
         let mut env = Environment::new();
         let template_dir = project_root.map(|p| p.join("templates"));
+        let theme_pack_dir: Option<PathBuf> = config
+            .theme
+            .pack
+            .as_ref()
+            .map(|p| match project_root {
+                Some(root) => root.join(p).join("templates"),
+                None => PathBuf::from(p).join("templates"),
+            });
 
         env.set_loader(move |name| {
             if let Some(ref dir) = template_dir {
+                if let Some(template) = load_template_from_dir(dir, name)? {
+                    return Ok(Some(template));
+                }
+            }
+            if let Some(ref dir) = theme_pack_dir {
                 if let Some(template) = load_template_from_dir(dir, name)? {
                     return Ok(Some(template));
                 }
