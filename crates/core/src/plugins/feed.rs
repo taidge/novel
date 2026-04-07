@@ -14,6 +14,9 @@ impl Plugin for FeedPlugin {
         if let Some(xml) = generate_feed_xml(site) {
             out.push(("feed.xml".to_string(), xml.into_bytes()));
         }
+        if let Some(json) = generate_json_feed(site) {
+            out.push(("feed.json".to_string(), json.into_bytes()));
+        }
 
         // Per-collection feeds: one feed.xml per collection that has the
         // `feed = true` flag in its _collection.toml. Discovered by scanning
@@ -30,6 +33,58 @@ impl Plugin for FeedPlugin {
         }
         out
     }
+}
+
+/// Generate a JSON Feed v1.1 (https://www.jsonfeed.org/version/1.1/) for the
+/// whole site. Returns `None` when `site_url` is not configured.
+pub fn generate_json_feed(site: &BuiltSiteView) -> Option<String> {
+    let base_url = site.config.site_url.as_deref()?.trim_end_matches('/');
+    if base_url.is_empty() {
+        return None;
+    }
+
+    let items: Vec<serde_json::Value> = site
+        .pages
+        .iter()
+        .filter(|p| {
+            !matches!(
+                p.frontmatter.page_type,
+                Some(PageType::Home) | Some(PageType::NotFound)
+            )
+        })
+        .map(|p| {
+            let url = format!("{}{}", base_url, &p.route.route_path);
+            let mut item = serde_json::json!({
+                "id": url,
+                "url": url,
+                "title": p.title,
+            });
+            if !p.description.is_empty() {
+                item["summary"] = serde_json::Value::String(p.description.clone());
+            }
+            if let Some(ref s) = p.summary_html {
+                item["content_html"] = serde_json::Value::String(s.clone());
+            }
+            if let Some(ref d) = p.date.as_ref().or(p.last_updated.as_ref()) {
+                item["date_published"] =
+                    serde_json::Value::String(format!("{}T00:00:00Z", d));
+            }
+            if !p.frontmatter.tags.is_empty() {
+                item["tags"] = serde_json::Value::from(p.frontmatter.tags.clone());
+            }
+            item
+        })
+        .collect();
+
+    let feed = serde_json::json!({
+        "version": "https://jsonfeed.org/version/1.1",
+        "title": site.config.title,
+        "description": site.config.description,
+        "home_page_url": format!("{}/", base_url),
+        "feed_url": format!("{}/feed.json", base_url),
+        "items": items,
+    });
+    serde_json::to_string_pretty(&feed).ok()
 }
 
 pub fn generate_feed_xml(site: &BuiltSiteView) -> Option<String> {

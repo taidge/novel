@@ -927,6 +927,127 @@ fn post_process_general(
         }
     }
 
+    // 3b. Series: group entries by frontmatter.series and emit list pages.
+    {
+        use std::collections::BTreeMap;
+        let mut series_map: BTreeMap<String, Vec<&PageData>> = BTreeMap::new();
+        for p in &pages {
+            if let Some(ref s) = p.frontmatter.series {
+                series_map.entry(s.clone()).or_default().push(p);
+            }
+        }
+        for (series, mut entries) in series_map {
+            // Sort series chronologically (asc by date) so reading order makes sense.
+            entries.sort_by(|a, b| {
+                let ad = a.date.as_deref().unwrap_or("");
+                let bd = b.date.as_deref().unwrap_or("");
+                ad.cmp(bd)
+            });
+            let items: Vec<PageRef> = entries
+                .iter()
+                .map(|p| PageRef {
+                    title: p.title.clone(),
+                    link: p.route.route_path.clone(),
+                    date: p.date.clone(),
+                    summary_html: p.summary_html.clone(),
+                })
+                .collect();
+            let slug = slugify(&series);
+            let base_route = format!("/series/{}/", slug);
+            let paginators = pagination::paginate(
+                &base_route,
+                items,
+                usize::MAX, // single-page series index
+                &config.pagination.page_path,
+                config.pagination.first_page_in_root,
+            );
+            for paginator in paginators {
+                list_pages.push(ListPage {
+                    route_path: paginator.route_path.clone(),
+                    title: format!("Series: {}", series),
+                    paginator,
+                });
+            }
+        }
+    }
+
+    // 3c. Date archives (year + year/month) for pages with `date`.
+    {
+        use std::collections::BTreeMap;
+        let mut by_year: BTreeMap<String, Vec<&PageData>> = BTreeMap::new();
+        let mut by_ym: BTreeMap<String, Vec<&PageData>> = BTreeMap::new();
+        for p in &pages {
+            if let Some(date) = p.date.as_deref() {
+                if date.len() >= 4 {
+                    by_year.entry(date[..4].to_string()).or_default().push(p);
+                }
+                if date.len() >= 7 {
+                    by_ym.entry(date[..7].replace('-', "/"))
+                        .or_default()
+                        .push(p);
+                }
+            }
+        }
+        for (year, mut entries) in by_year {
+            entries.sort_by(|a, b| {
+                b.date.as_deref().unwrap_or("").cmp(a.date.as_deref().unwrap_or(""))
+            });
+            let items: Vec<PageRef> = entries
+                .iter()
+                .map(|p| PageRef {
+                    title: p.title.clone(),
+                    link: p.route.route_path.clone(),
+                    date: p.date.clone(),
+                    summary_html: p.summary_html.clone(),
+                })
+                .collect();
+            let base_route = format!("/archive/{}/", year);
+            let paginators = pagination::paginate(
+                &base_route,
+                items,
+                usize::MAX,
+                &config.pagination.page_path,
+                config.pagination.first_page_in_root,
+            );
+            for paginator in paginators {
+                list_pages.push(ListPage {
+                    route_path: paginator.route_path.clone(),
+                    title: format!("Archive: {}", year),
+                    paginator,
+                });
+            }
+        }
+        for (ym, mut entries) in by_ym {
+            entries.sort_by(|a, b| {
+                b.date.as_deref().unwrap_or("").cmp(a.date.as_deref().unwrap_or(""))
+            });
+            let items: Vec<PageRef> = entries
+                .iter()
+                .map(|p| PageRef {
+                    title: p.title.clone(),
+                    link: p.route.route_path.clone(),
+                    date: p.date.clone(),
+                    summary_html: p.summary_html.clone(),
+                })
+                .collect();
+            let base_route = format!("/archive/{}/", ym);
+            let paginators = pagination::paginate(
+                &base_route,
+                items,
+                usize::MAX,
+                &config.pagination.page_path,
+                config.pagination.first_page_in_root,
+            );
+            for paginator in paginators {
+                list_pages.push(ListPage {
+                    route_path: paginator.route_path.clone(),
+                    title: format!("Archive: {}", ym.replace('/', "-")),
+                    paginator,
+                });
+            }
+        }
+    }
+
     // 4. Taxonomies: build inverted index, term pages, overview pages.
     let mut terms_pages = Vec::new();
     let tax_set = taxonomy::build(&pages, &config.taxonomies);
