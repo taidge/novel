@@ -59,7 +59,7 @@ check_dead_links = false
 dark_mode = true
 
 # Footer text (HTML is supported)
-footer = "Built with Novel | MIT License"
+footer = "Built with Novel | Apache 2.0 License"
 
 # Show git last-updated timestamps on pages
 last_updated = true

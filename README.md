@@ -150,4 +150,4 @@ Full documentation lives in the `docs/` directory and can be built with `novel b
 
 ## License
 
-MIT
+Licensed under the [Apache License, Version 2.0](./LICENSE).
