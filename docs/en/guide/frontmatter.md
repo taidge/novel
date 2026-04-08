@@ -62,7 +62,7 @@ outline: false    # hide the table of contents on this page
 
 ## Hero & Features
 
-Used only with `page_type: home`. See [Home Page](/guide/home-page) for full details.
+Used only with `page_type: home`. See [Home Page](/en/guide/home-page) for full details.
 
 ```yaml
 ---
