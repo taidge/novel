@@ -181,16 +181,16 @@ impl MarkdownProcessor {
                     } else {
 
                     // Check for file embed (requires project_root)
-                    if let Some(ref project_root) = self.project_root {
-                        if let Some(embed) = parse_file_embed(&code_info) {
-                            match read_embedded_file(&embed, file_dir, project_root) {
-                                Ok(file_content) => {
-                                    code_content = file_content;
-                                }
-                                Err(e) => {
-                                    tracing::warn!("Failed to embed file: {}", e);
-                                    code_content = format!("Error embedding file: {}", e);
-                                }
+                    if let Some(ref project_root) = self.project_root
+                        && let Some(embed) = parse_file_embed(&code_info)
+                    {
+                        match read_embedded_file(&embed, file_dir, project_root) {
+                            Ok(file_content) => {
+                                code_content = file_content;
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to embed file: {}", e);
+                                code_content = format!("Error embedding file: {}", e);
                             }
                         }
                     }
@@ -304,10 +304,8 @@ impl MarkdownProcessor {
         // Build summary HTML: prefer frontmatter.summary, then <!-- more --> split, else None
         let summary_html = if let Some(s) = frontmatter.summary.clone() {
             Some(render_simple_markdown(&s))
-        } else if let Some(md) = summary_md {
-            Some(render_simple_markdown(&md))
         } else {
-            None
+            summary_md.map(|md| render_simple_markdown(&md))
         };
 
         let date = frontmatter.date.clone();

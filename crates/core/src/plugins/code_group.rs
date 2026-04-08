@@ -1,4 +1,8 @@
 use crate::plugin::{ContainerDirective, Plugin};
+use std::sync::LazyLock;
+
+static TITLE_RE: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"title="([^"]+)""#).unwrap());
 
 /// Plugin that provides the `::: code-group` container directive.
 ///
@@ -43,12 +47,9 @@ impl ContainerDirective for CodeGroupDirective {
                     let lang = info.split_whitespace().next().unwrap_or("").to_string();
 
                     // Try to extract title="..." as label
-                    let title_re = regex::Regex::new(r#"title="([^"]+)""#).ok();
-                    let label = title_re
-                        .and_then(|re| {
-                            re.captures(info)
-                                .map(|c| c.get(1).unwrap().as_str().to_string())
-                        })
+                    let label = TITLE_RE
+                        .captures(info)
+                        .map(|c| c.get(1).unwrap().as_str().to_string())
                         .unwrap_or_else(|| {
                             if lang.is_empty() {
                                 "Code".to_string()

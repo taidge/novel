@@ -103,8 +103,10 @@ impl DirNovel {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| "docs".to_string());
 
-        let mut config = SiteConfig::default();
-        config.root = root_rel;
+        let config = SiteConfig {
+            root: root_rel,
+            ..SiteConfig::default()
+        };
         Self {
             config,
             project_root,
@@ -863,10 +865,10 @@ fn post_process_general(
             if let Some(col) = content::collection_for_page(&p.route.relative_path, collections)
             {
                 p.collection = Some(col.clone());
-                if p.frontmatter.layout.is_none() {
-                    if let Some(c) = collections.get(&col) {
-                        p.frontmatter.layout = Some(c.config.layout.clone());
-                    }
+                if p.frontmatter.layout.is_none()
+                    && let Some(c) = collections.get(&col)
+                {
+                    p.frontmatter.layout = Some(c.config.layout.clone());
                 }
             }
             p

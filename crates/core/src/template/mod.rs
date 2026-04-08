@@ -99,12 +99,18 @@ impl TemplateEngine {
                 Box::new(handlebars_engine::HandlebarsRenderer::new(project_root)?)
             }
             other => {
-                #[allow(unused_mut)]
-                let mut supported = vec!["minijinja"];
-                #[cfg(feature = "tera")]
-                supported.push("tera");
-                #[cfg(feature = "handlebars")]
-                supported.push("handlebars");
+                // `cfg` attributes on `vec!` elements are stable and avoid
+                // both the `useless_vec` warning (which fires if we build
+                // the list from a single-element vec) and the
+                // `vec_init_then_push` warning (which fires if we build it
+                // from `Vec::new()` + `.push`).
+                let supported: Vec<&str> = vec![
+                    "minijinja",
+                    #[cfg(feature = "tera")]
+                    "tera",
+                    #[cfg(feature = "handlebars")]
+                    "handlebars",
+                ];
                 anyhow::bail!(
                     "Unknown template engine '{}'. Supported: {}",
                     other,

@@ -112,17 +112,16 @@ pub fn filter_pages(
             if !include_drafts && p.frontmatter.draft {
                 return false;
             }
-            if !include_future {
-                if let Some(d) = p.date.as_deref() {
-                    if d.as_bytes() > today.as_bytes() {
-                        return false;
-                    }
-                }
+            if !include_future
+                && let Some(d) = p.date.as_deref()
+                && d.as_bytes() > today.as_bytes()
+            {
+                return false;
             }
-            if let Some(exp) = p.frontmatter.expiry_date.as_deref() {
-                if exp.as_bytes() <= today.as_bytes() {
-                    return false;
-                }
+            if let Some(exp) = p.frontmatter.expiry_date.as_deref()
+                && exp.as_bytes() <= today.as_bytes()
+            {
+                return false;
             }
             true
         })

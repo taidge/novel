@@ -113,7 +113,7 @@ impl Default for ContentConfig {
 }
 
 /// Taxonomy configuration (e.g. tags, categories).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TaxonomyConfig {
     pub name: String,
@@ -121,17 +121,6 @@ pub struct TaxonomyConfig {
     pub permalink: Option<String>,
     pub paginate_by: Option<usize>,
     pub feed: bool,
-}
-
-impl Default for TaxonomyConfig {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            permalink: None,
-            paginate_by: None,
-            feed: false,
-        }
-    }
 }
 
 /// Pagination configuration.
