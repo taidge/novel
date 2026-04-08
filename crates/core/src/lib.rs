@@ -6,7 +6,6 @@ pub mod data;
 pub mod error;
 pub mod markdown;
 pub mod pagination;
-pub mod taxonomy;
 pub mod plugin;
 pub mod plugins;
 pub mod routing;
@@ -15,6 +14,7 @@ pub mod search;
 pub mod serve;
 pub mod sidebar;
 pub mod source;
+pub mod taxonomy;
 pub mod template;
 pub mod typst_processor;
 
@@ -275,8 +275,7 @@ impl Novel for DirNovel {
                     if page.route.route_path == "/" {
                         page.route.route_path = format!("{}/", prefix);
                     } else {
-                        page.route.route_path =
-                            format!("{}{}", prefix, page.route.route_path);
+                        page.route.route_path = format!("{}{}", prefix, page.route.route_path);
                     }
                     page.route.locale = Some(locale.code.clone());
 
@@ -352,11 +351,7 @@ impl Novel for DirNovel {
 
         let source = DirSource::new(docs_root.clone());
 
-        let engine = TemplateEngine::new(
-            Some(&self.project_root),
-            &self.plugins,
-            &self.config,
-        )?;
+        let engine = TemplateEngine::new(Some(&self.project_root), &self.plugins, &self.config)?;
 
         // Take plugins out of self to move into BuiltSite
         let plugins = std::mem::take(&mut self.plugins);
@@ -737,12 +732,9 @@ impl BuiltSite {
 
         // Taxonomy overview pages
         for tp in &self.terms_pages {
-            let html = self.engine.render_terms(
-                tp.title.clone(),
-                &tp.terms,
-                &self.config,
-                &self.nav,
-            )?;
+            let html =
+                self.engine
+                    .render_terms(tp.title.clone(), &tp.terms, &self.config, &self.nav)?;
             let out_path = route_to_file_path(output_dir, &tp.route_path);
             if let Some(parent) = out_path.parent() {
                 std::fs::create_dir_all(parent)?;
@@ -862,8 +854,7 @@ fn post_process_general(
     let mut pages: Vec<PageData> = pages
         .into_iter()
         .map(|mut p| {
-            if let Some(col) = content::collection_for_page(&p.route.relative_path, collections)
-            {
+            if let Some(col) = content::collection_for_page(&p.route.relative_path, collections) {
                 p.collection = Some(col.clone());
                 if p.frontmatter.layout.is_none()
                     && let Some(c) = collections.get(&col)
@@ -877,12 +868,7 @@ fn post_process_general(
 
     // 2. Drop drafts / future / expired (and their would-be index pages).
     let today = content::today_string();
-    pages = content::filter_pages(
-        pages,
-        config.content.drafts,
-        config.content.future,
-        &today,
-    );
+    pages = content::filter_pages(pages, config.content.drafts, config.content.future, &today);
 
     // 3. Per-collection: build paginated list pages.
     let mut list_pages = Vec::new();
@@ -919,7 +905,11 @@ fn post_process_general(
             .collect();
 
         let base_route = format!("/{}/", name);
-        let per = if coll.config.paginate_by == 0 { items.len().max(1) } else { coll.config.paginate_by };
+        let per = if coll.config.paginate_by == 0 {
+            items.len().max(1)
+        } else {
+            coll.config.paginate_by
+        };
         let paginators = pagination::paginate(
             &base_route,
             items,
@@ -993,7 +983,8 @@ fn post_process_general(
                     by_year.entry(date[..4].to_string()).or_default().push(p);
                 }
                 if date.len() >= 7 {
-                    by_ym.entry(date[..7].replace('-', "/"))
+                    by_ym
+                        .entry(date[..7].replace('-', "/"))
                         .or_default()
                         .push(p);
                 }
@@ -1001,7 +992,10 @@ fn post_process_general(
         }
         for (year, mut entries) in by_year {
             entries.sort_by(|a, b| {
-                b.date.as_deref().unwrap_or("").cmp(a.date.as_deref().unwrap_or(""))
+                b.date
+                    .as_deref()
+                    .unwrap_or("")
+                    .cmp(a.date.as_deref().unwrap_or(""))
             });
             let items: Vec<PageRef> = entries
                 .iter()
@@ -1030,7 +1024,10 @@ fn post_process_general(
         }
         for (ym, mut entries) in by_ym {
             entries.sort_by(|a, b| {
-                b.date.as_deref().unwrap_or("").cmp(a.date.as_deref().unwrap_or(""))
+                b.date
+                    .as_deref()
+                    .unwrap_or("")
+                    .cmp(a.date.as_deref().unwrap_or(""))
             });
             let items: Vec<PageRef> = entries
                 .iter()
@@ -1069,8 +1066,7 @@ fn post_process_general(
 
         // Term pages
         for (term, page_indices) in &idx.terms {
-            let mut entries: Vec<&PageData> =
-                page_indices.iter().map(|i| &pages[*i]).collect();
+            let mut entries: Vec<&PageData> = page_indices.iter().map(|i| &pages[*i]).collect();
             // Sort: date desc by default
             entries.sort_by(|a, b| {
                 let ad = a.date.as_deref().unwrap_or("");
@@ -1193,10 +1189,7 @@ fn remove_file_retry(path: &Path) -> std::io::Result<()> {
     retry_io(|| std::fs::remove_file(path), path)
 }
 
-fn retry_io<F: FnMut() -> std::io::Result<()>>(
-    mut op: F,
-    path: &Path,
-) -> std::io::Result<()> {
+fn retry_io<F: FnMut() -> std::io::Result<()>>(mut op: F, path: &Path) -> std::io::Result<()> {
     // Delays in milliseconds: 0, 25, 50, 100, 200, 400, 800 — ~1.6s total.
     const DELAYS_MS: &[u64] = &[0, 25, 50, 100, 200, 400, 800];
 

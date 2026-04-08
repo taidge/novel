@@ -85,11 +85,8 @@ impl MiniJinjaRenderer {
     ) -> Result<Self> {
         let mut env = Environment::new();
         let template_dir = project_root.map(|p| p.join("templates"));
-        let theme_pack_dir: Option<PathBuf> = config
-            .theme
-            .pack
-            .as_ref()
-            .map(|p| match project_root {
+        let theme_pack_dir: Option<PathBuf> =
+            config.theme.pack.as_ref().map(|p| match project_root {
                 Some(root) => root.join(p).join("templates"),
                 None => PathBuf::from(p).join("templates"),
             });
@@ -122,39 +119,36 @@ impl MiniJinjaRenderer {
         });
 
         let base_for_set = base.clone();
-        env.add_function(
-            "image_set",
-            move |path: String, sizes: Vec<u32>| -> Value {
-                let stem_dot_ext = std::path::Path::new(&path)
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("");
-                let (stem, ext) = match stem_dot_ext.rsplit_once('.') {
-                    Some((s, e)) => (s, e),
-                    None => (stem_dot_ext, ""),
-                };
-                let parent = std::path::Path::new(&path)
-                    .parent()
-                    .and_then(|p| p.to_str())
-                    .unwrap_or("");
-                let trimmed_base = base_for_set.trim_end_matches('/');
-                let parts: Vec<String> = sizes
-                    .iter()
-                    .map(|w| {
-                        let url = if parent.is_empty() {
-                            format!("{}/_resized/{}-{}.{}", trimmed_base, stem, w, ext)
-                        } else {
-                            format!(
-                                "{}/_resized/{}/{}-{}.{}",
-                                trimmed_base, parent, stem, w, ext
-                            )
-                        };
-                        format!("{} {}w", url, w)
-                    })
-                    .collect();
-                Value::from(parts.join(", "))
-            },
-        );
+        env.add_function("image_set", move |path: String, sizes: Vec<u32>| -> Value {
+            let stem_dot_ext = std::path::Path::new(&path)
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("");
+            let (stem, ext) = match stem_dot_ext.rsplit_once('.') {
+                Some((s, e)) => (s, e),
+                None => (stem_dot_ext, ""),
+            };
+            let parent = std::path::Path::new(&path)
+                .parent()
+                .and_then(|p| p.to_str())
+                .unwrap_or("");
+            let trimmed_base = base_for_set.trim_end_matches('/');
+            let parts: Vec<String> = sizes
+                .iter()
+                .map(|w| {
+                    let url = if parent.is_empty() {
+                        format!("{}/_resized/{}-{}.{}", trimmed_base, stem, w, ext)
+                    } else {
+                        format!(
+                            "{}/_resized/{}/{}-{}.{}",
+                            trimmed_base, parent, stem, w, ext
+                        )
+                    };
+                    format!("{} {}w", url, w)
+                })
+                .collect();
+            Value::from(parts.join(", "))
+        });
 
         for plugin in plugins {
             plugin.register_template_helpers(&mut env);

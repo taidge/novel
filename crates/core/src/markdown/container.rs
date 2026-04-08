@@ -397,7 +397,11 @@ mod tests {
                 "mybox"
             }
             fn render(&self, title: &str, body: &str) -> String {
-                format!("<div class=\"mybox\"><h3>{}</h3>{}</div>", title, body.trim())
+                format!(
+                    "<div class=\"mybox\"><h3>{}</h3>{}</div>",
+                    title,
+                    body.trim()
+                )
             }
         }
 

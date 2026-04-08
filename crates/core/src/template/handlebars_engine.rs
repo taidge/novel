@@ -32,8 +32,9 @@ impl HandlebarsRenderer {
         for name in HbsTemplates::iter() {
             let name_str = name.as_ref();
             if let Some(file) = HbsTemplates::get(name_str) {
-                let content = std::str::from_utf8(file.data.as_ref())
-                    .map_err(|e| anyhow::anyhow!("Embedded hbs template {name_str} is not valid UTF-8: {e}"))?;
+                let content = std::str::from_utf8(file.data.as_ref()).map_err(|e| {
+                    anyhow::anyhow!("Embedded hbs template {name_str} is not valid UTF-8: {e}")
+                })?;
                 let tmpl_name = name_str.trim_end_matches(".html");
                 hbs.register_template_string(tmpl_name, content)?;
             }
@@ -95,7 +96,11 @@ fn json_helper(
     _: &mut handlebars::RenderContext,
     out: &mut dyn handlebars::Output,
 ) -> handlebars::HelperResult {
-    let value = h.param(0).map(|v| v.value()).cloned().unwrap_or(serde_json::Value::Null);
+    let value = h
+        .param(0)
+        .map(|v| v.value())
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
     let serialized = serde_json::to_string(&value)
         .map_err(|e| handlebars::RenderErrorReason::Other(e.to_string()))?;
     out.write(&serialized)?;

@@ -16,7 +16,10 @@ pub fn process(cfg: &ImagesConfig, docs_root: &Path, output_dir: &Path) -> Resul
         return Ok(());
     }
     let resized_root = output_dir.join("_resized");
-    for entry in walkdir::WalkDir::new(docs_root).into_iter().filter_map(|e| e.ok()) {
+    for entry in walkdir::WalkDir::new(docs_root)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         if !entry.file_type().is_file() {
             continue;
         }
@@ -25,7 +28,11 @@ pub fn process(cfg: &ImagesConfig, docs_root: &Path, output_dir: &Path) -> Resul
             .extension()
             .and_then(|e| e.to_str())
             .map(|s| s.to_ascii_lowercase());
-        if !ext.as_deref().map(|e| SUPPORTED_EXTS.contains(&e)).unwrap_or(false) {
+        if !ext
+            .as_deref()
+            .map(|e| SUPPORTED_EXTS.contains(&e))
+            .unwrap_or(false)
+        {
             continue;
         }
 
@@ -64,9 +71,7 @@ pub fn process(cfg: &ImagesConfig, docs_root: &Path, output_dir: &Path) -> Resul
 #[cfg(not(feature = "images"))]
 pub fn process(cfg: &ImagesConfig, _docs_root: &Path, _output_dir: &Path) -> Result<()> {
     if !cfg.sizes.is_empty() {
-        tracing::warn!(
-            "image sizes configured but novel-core was built without `images` feature"
-        );
+        tracing::warn!("image sizes configured but novel-core was built without `images` feature");
     }
     Ok(())
 }

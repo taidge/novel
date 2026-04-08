@@ -74,7 +74,10 @@ impl MarkdownProcessor {
         let summary_separator = "<!-- more -->";
         let (summary_md, body_for_processing) =
             if let Some(idx) = markdown_body.find(summary_separator) {
-                (Some(markdown_body[..idx].to_string()), markdown_body.clone())
+                (
+                    Some(markdown_body[..idx].to_string()),
+                    markdown_body.clone(),
+                )
             } else {
                 (None, markdown_body.clone())
             };
@@ -179,55 +182,56 @@ impl MarkdownProcessor {
                         code_info.clear();
                         code_content.clear();
                     } else {
-
-                    // Check for file embed (requires project_root)
-                    if let Some(ref project_root) = self.project_root
-                        && let Some(embed) = parse_file_embed(&code_info)
-                    {
-                        match read_embedded_file(&embed, file_dir, project_root) {
-                            Ok(file_content) => {
-                                code_content = file_content;
-                            }
-                            Err(e) => {
-                                tracing::warn!("Failed to embed file: {}", e);
-                                code_content = format!("Error embedding file: {}", e);
+                        // Check for file embed (requires project_root)
+                        if let Some(ref project_root) = self.project_root
+                            && let Some(embed) = parse_file_embed(&code_info)
+                        {
+                            match read_embedded_file(&embed, file_dir, project_root) {
+                                Ok(file_content) => {
+                                    code_content = file_content;
+                                }
+                                Err(e) => {
+                                    tracing::warn!("Failed to embed file: {}", e);
+                                    code_content = format!("Error embedding file: {}", e);
+                                }
                             }
                         }
-                    }
 
-                    // Parse title from info string
-                    let title = parse_code_title(&code_info);
+                        // Parse title from info string
+                        let title = parse_code_title(&code_info);
 
-                    // Parse highlighted lines from info string {1,3-5}
-                    let highlighted_lines = parse_highlighted_lines(&code_info);
+                        // Parse highlighted lines from info string {1,3-5}
+                        let highlighted_lines = parse_highlighted_lines(&code_info);
 
-                    // Check if line numbers should be shown
-                    let show_ln = self.show_line_numbers || code_info.contains("showLineNumbers");
+                        // Check if line numbers should be shown
+                        let show_ln =
+                            self.show_line_numbers || code_info.contains("showLineNumbers");
 
-                    // Check if this is a diff
-                    let is_diff = code_lang == "diff" || code_info.contains("diff");
+                        // Check if this is a diff
+                        let is_diff = code_lang == "diff" || code_info.contains("diff");
 
-                    // Syntax highlight
-                    let effective_lang = if is_diff && code_lang == "diff" {
-                        // Try to detect actual language from content
-                        ""
-                    } else {
-                        &code_lang
-                    };
-                    let highlighted = highlight_code(&code_content, effective_lang, &self.syntax_theme);
+                        // Syntax highlight
+                        let effective_lang = if is_diff && code_lang == "diff" {
+                            // Try to detect actual language from content
+                            ""
+                        } else {
+                            &code_lang
+                        };
+                        let highlighted =
+                            highlight_code(&code_content, effective_lang, &self.syntax_theme);
 
-                    // Build HTML with line features
-                    let html_output = build_code_block_html(
-                        &highlighted,
-                        &code_content,
-                        &code_lang,
-                        title.as_deref(),
-                        &highlighted_lines,
-                        show_ln,
-                        is_diff,
-                    );
+                        // Build HTML with line features
+                        let html_output = build_code_block_html(
+                            &highlighted,
+                            &code_content,
+                            &code_lang,
+                            title.as_deref(),
+                            &highlighted_lines,
+                            show_ln,
+                            is_diff,
+                        );
 
-                    events.push(Event::Html(CowStr::from(html_output)));
+                        events.push(Event::Html(CowStr::from(html_output)));
                     }
                 }
                 // External links: add target="_blank"

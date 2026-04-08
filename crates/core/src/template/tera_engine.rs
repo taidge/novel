@@ -25,8 +25,9 @@ impl TeraRenderer {
         for name in TeraTemplates::iter() {
             let name_str = name.as_ref();
             if let Some(file) = TeraTemplates::get(name_str) {
-                let content = std::str::from_utf8(file.data.as_ref())
-                    .map_err(|e| anyhow::anyhow!("Embedded tera template {name_str} is not valid UTF-8: {e}"))?;
+                let content = std::str::from_utf8(file.data.as_ref()).map_err(|e| {
+                    anyhow::anyhow!("Embedded tera template {name_str} is not valid UTF-8: {e}")
+                })?;
                 tera.add_raw_template(name_str, content)?;
             }
         }

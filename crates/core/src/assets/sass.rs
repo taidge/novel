@@ -44,9 +44,7 @@ pub fn compile(cfg: &SassConfig, project_root: &Path, output_dir: &Path) -> Resu
 #[cfg(not(feature = "sass"))]
 pub fn compile(cfg: &SassConfig, _project_root: &Path, _output_dir: &Path) -> Result<()> {
     if !cfg.entries.is_empty() {
-        tracing::warn!(
-            "sass entries configured but novel-core was built without `sass` feature"
-        );
+        tracing::warn!("sass entries configured but novel-core was built without `sass` feature");
     }
     Ok(())
 }

@@ -86,14 +86,22 @@ async fn main() -> Result<()> {
         Commands::Dev { port } => {
             dev::run_dev_server(&project_root, port).await?;
         }
-        Commands::Build { force: _, drafts, future } => {
+        Commands::Build {
+            force: _,
+            drafts,
+            future,
+        } => {
             info!("Building site...");
             let mut novel = novel_core::DirNovel::load(&project_root)?;
             {
                 // Apply CLI overrides for content config
                 let cfg = novel.config_mut();
-                if drafts { cfg.content.drafts = true; }
-                if future { cfg.content.future = true; }
+                if drafts {
+                    cfg.content.drafts = true;
+                }
+                if future {
+                    cfg.content.future = true;
+                }
             }
             let site = novel
                 .plugin(novel_core::plugins::SitemapPlugin)

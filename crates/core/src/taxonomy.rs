@@ -29,10 +29,7 @@ fn page_terms_for(page: &PageData, key: &str) -> Vec<String> {
 }
 
 /// Build inverted index for each configured taxonomy.
-pub fn build(
-    pages: &[PageData],
-    taxonomies: &HashMap<String, TaxonomyConfig>,
-) -> TaxonomySet {
+pub fn build(pages: &[PageData], taxonomies: &HashMap<String, TaxonomyConfig>) -> TaxonomySet {
     let mut set = TaxonomySet::default();
     for key in taxonomies.keys() {
         let mut idx = TermIndex::default();

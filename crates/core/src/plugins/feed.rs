@@ -66,8 +66,7 @@ pub fn generate_json_feed(site: &BuiltSiteView) -> Option<String> {
                 item["content_html"] = serde_json::Value::String(s.clone());
             }
             if let Some(ref d) = p.date.as_ref().or(p.last_updated.as_ref()) {
-                item["date_published"] =
-                    serde_json::Value::String(format!("{}T00:00:00Z", d));
+                item["date_published"] = serde_json::Value::String(format!("{}T00:00:00Z", d));
             }
             if !p.frontmatter.tags.is_empty() {
                 item["tags"] = serde_json::Value::from(p.frontmatter.tags.clone());
@@ -122,10 +121,7 @@ pub fn generate_feed_xml(site: &BuiltSiteView) -> Option<String> {
         }
         let url = format!("{}{}", base_url, &page.route.route_path);
         xml.push_str("  <entry>\n");
-        xml.push_str(&format!(
-            "    <title>{}</title>\n",
-            xml_escape(&page.title)
-        ));
+        xml.push_str(&format!("    <title>{}</title>\n", xml_escape(&page.title)));
         xml.push_str(&format!("    <link href=\"{}\"/>\n", url));
         xml.push_str(&format!("    <id>{}</id>\n", url));
         if let Some(ref date) = page.last_updated {
@@ -177,10 +173,7 @@ pub fn generate_collection_feed_xml(site: &BuiltSiteView, collection: &str) -> O
     for page in entries {
         let url = format!("{}{}", base_url, &page.route.route_path);
         xml.push_str("  <entry>\n");
-        xml.push_str(&format!(
-            "    <title>{}</title>\n",
-            xml_escape(&page.title)
-        ));
+        xml.push_str(&format!("    <title>{}</title>\n", xml_escape(&page.title)));
         xml.push_str(&format!("    <link href=\"{}\"/>\n", url));
         xml.push_str(&format!("    <id>{}</id>\n", url));
         if let Some(ref date) = page.date {

@@ -30,11 +30,7 @@ impl TypstProcessor {
     }
 
     /// Process a `.typ` file into [`PageData`].
-    pub fn process_file(
-        &self,
-        raw_content: &str,
-        route: RouteMeta,
-    ) -> Result<PageData> {
+    pub fn process_file(&self, raw_content: &str, route: RouteMeta) -> Result<PageData> {
         // 1. Extract YAML frontmatter from leading `//` comments
         let (frontmatter, _body) = parse_typst_frontmatter(raw_content);
 
@@ -188,7 +184,11 @@ fn compile_to_html(file_path: &Path, root: &Path) -> Result<String> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let _ = std::fs::remove_file(&temp_output);
-        anyhow::bail!("typst compile failed for {}: {}", file_path.display(), stderr);
+        anyhow::bail!(
+            "typst compile failed for {}: {}",
+            file_path.display(),
+            stderr
+        );
     }
 
     let html = std::fs::read_to_string(&temp_output)?;

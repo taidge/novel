@@ -22,10 +22,7 @@ pub fn generate_search_index(pages: &[PageData]) -> Vec<SearchIndexEntry> {
 }
 
 /// Extract content sections split by headings for section-level search
-fn extract_sections(
-    html: &str,
-    toc: &[novel_shared::TocItem],
-) -> Vec<SearchSection> {
+fn extract_sections(html: &str, toc: &[novel_shared::TocItem]) -> Vec<SearchSection> {
     if toc.is_empty() {
         return vec![];
     }
@@ -40,15 +37,22 @@ fn extract_sections(
         };
 
         // Find the end: next heading or end of content
-        let content_start = html[start_pos..].find("</h").map(|p| {
-            // Skip past the closing heading tag
-            let after_close = start_pos + p;
-            html[after_close..].find('>').map(|q| after_close + q + 1).unwrap_or(after_close)
-        }).unwrap_or(start_pos);
+        let content_start = html[start_pos..]
+            .find("</h")
+            .map(|p| {
+                // Skip past the closing heading tag
+                let after_close = start_pos + p;
+                html[after_close..]
+                    .find('>')
+                    .map(|q| after_close + q + 1)
+                    .unwrap_or(after_close)
+            })
+            .unwrap_or(start_pos);
 
         let content_end = if i + 1 < toc.len() {
             let next_pattern = format!("id=\"{}\"", toc[i + 1].id);
-            html[content_start..].find(&next_pattern)
+            html[content_start..]
+                .find(&next_pattern)
                 .map(|p| {
                     // Back up to the start of the heading tag
                     let region = &html[..content_start + p];

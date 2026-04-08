@@ -1,8 +1,8 @@
+#[cfg(feature = "handlebars")]
+mod handlebars_engine;
 mod minijinja_engine;
 #[cfg(feature = "tera")]
 mod tera_engine;
-#[cfg(feature = "handlebars")]
-mod handlebars_engine;
 
 use anyhow::Result;
 use novel_shared::config::SiteConfig;
@@ -85,19 +85,15 @@ impl TemplateEngine {
         config: &SiteConfig,
     ) -> Result<Self> {
         let renderer: Box<dyn TemplateRenderer> = match config.template_engine.as_str() {
-            "minijinja" | "" => {
-                Box::new(minijinja_engine::MiniJinjaRenderer::new(
-                    project_root,
-                    plugins,
-                    config,
-                )?)
-            }
+            "minijinja" | "" => Box::new(minijinja_engine::MiniJinjaRenderer::new(
+                project_root,
+                plugins,
+                config,
+            )?),
             #[cfg(feature = "tera")]
             "tera" => Box::new(tera_engine::TeraRenderer::new(project_root)?),
             #[cfg(feature = "handlebars")]
-            "handlebars" => {
-                Box::new(handlebars_engine::HandlebarsRenderer::new(project_root)?)
-            }
+            "handlebars" => Box::new(handlebars_engine::HandlebarsRenderer::new(project_root)?),
             other => {
                 // `cfg` attributes on `vec!` elements are stable and avoid
                 // both the `useless_vec` warning (which fires if we build
@@ -171,11 +167,7 @@ impl TemplateEngine {
         std::fs::read_to_string(full_path).ok()
     }
 
-    fn base_context<'a>(
-        &'a self,
-        config: &'a SiteConfig,
-        nav: &'a [NavItem],
-    ) -> RenderContext<'a> {
+    fn base_context<'a>(&'a self, config: &'a SiteConfig, nav: &'a [NavItem]) -> RenderContext<'a> {
         RenderContext {
             site: config,
             page: None,
@@ -197,11 +189,7 @@ impl TemplateEngine {
             custom_css_content: self.custom_css_content(config),
             asset_css: &self.css_filename,
             asset_js: &self.js_filename,
-            not_found_title: config
-                .theme
-                .not_found_title
-                .as_deref()
-                .unwrap_or("404"),
+            not_found_title: config.theme.not_found_title.as_deref().unwrap_or("404"),
             not_found_message: config
                 .theme
                 .not_found_message

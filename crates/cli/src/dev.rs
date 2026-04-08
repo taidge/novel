@@ -7,8 +7,8 @@ use salvo::serve_static::StaticDir;
 use salvo::sse::{SseEvent, SseKeepAlive};
 use std::path::Path;
 use tokio::sync::broadcast;
-use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
+use tokio_stream::wrappers::BroadcastStream;
 use tracing::info;
 
 /// Small JS snippet injected by the livereload plugin (dev mode only).

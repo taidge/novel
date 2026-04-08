@@ -4,5 +4,5 @@
 //! the feature is disabled the corresponding `compile_*` function is a no-op
 //! that returns `Ok(())`.
 
-pub mod sass;
 pub mod images;
+pub mod sass;
