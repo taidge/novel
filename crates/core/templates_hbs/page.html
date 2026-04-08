@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="{{ site.lang }}" data-theme="light">
+<head>
+    {{> _head }}
+    {{#if page.frontmatter.head}}
+    {{#each page.frontmatter.head}}
+    <{{ this.tag }}{{#each this.attrs}} {{ @key }}="{{ this }}"{{/each}}>{{#if this.content}}{{ this.content }}</{{ this.tag }}>{{/if}}
+    {{/each}}
+    {{/if}}
+</head>
+<body>
+    <a href="#main-content" class="skip-to-content">Skip to content</a>
+
+    {{#if site.theme.banner}}
+    <div class="banner" id="site-banner">
+        <div class="banner-inner">
+            {{#if site.theme.banner.link}}<a href="{{ site.theme.banner.link }}">{{ site.theme.banner.text }}</a>{{else}}{{ site.theme.banner.text }}{{/if}}
+        </div>
+        {{#if site.theme.banner.dismissible}}
+        <button class="banner-close" onclick="dismissBanner()" aria-label="Dismiss">&times;</button>
+        {{/if}}
+    </div>
+    {{/if}}
+
+    {{> _navbar }}
+
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <div class="page-container">
+        <div class="page-layout">
+            <main id="main-content" class="page-content">
+                <article class="markdown-body">
+                    {{{ page.content_html }}}
+                </article>
+            </main>
+        </div>
+    </div>
+
+    <button class="back-to-top" id="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3l6 6H2z"/></svg>
+    </button>
+
+    {{> _footer }}
+</body>
+</html>

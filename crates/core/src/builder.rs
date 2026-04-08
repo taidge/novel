@@ -1,15 +1,18 @@
 use anyhow::Result;
 use novel_shared::config::SiteConfig;
 use novel_shared::{NavItem, PageData, PageLink, PageType, SidebarItem};
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::process::Command;
 use tracing::info;
 
 use crate::markdown::{MarkdownProcessor, collect_internal_links};
+use crate::plugin::{BuiltSiteView, Plugin};
 use crate::routing::scan_routes;
 use crate::sidebar::{generate_nav, generate_sidebar};
 use crate::source::DocsSource;
+use crate::typst_processor::TypstProcessor;
 
 /// Internal build result
 pub(crate) struct BuildResult {
@@ -26,34 +29,122 @@ pub(crate) fn build_pages(
     source: &dyn DocsSource,
     config: &SiteConfig,
     project_root: Option<&Path>,
+    plugins: &[Box<dyn Plugin>],
 ) -> Result<BuildResult> {
-    let processor =
-        MarkdownProcessor::new(project_root).with_line_numbers(config.markdown.show_line_numbers);
+    // Plugin: on_pre_build
+    for p in plugins {
+        p.on_pre_build(config);
+    }
 
+    // Collect custom container directives from all plugins
+    let custom_directives: Vec<_> = plugins
+        .iter()
+        .flat_map(|p| p.container_directives())
+        .collect();
+
+    let syntax_theme = config.markdown.syntax_theme.clone();
+    let md_processor = MarkdownProcessor::new(project_root)
+        .with_line_numbers(config.markdown.show_line_numbers)
+        .with_syntax_theme(syntax_theme)
+        .with_custom_directives(custom_directives);
+
+    // Typst processor (only for filesystem-backed builds)
+    let typst_processor = project_root.map(|pr| {
+        let docs_root = pr.join(&config.root);
+        TypstProcessor::new(&docs_root)
+    });
+
+    // Check typst CLI availability once if there are .typ files
     info!("Scanning routes...");
     let routes = scan_routes(source)?;
     info!("Found {} routes", routes.len());
 
-    let mut pages = Vec::new();
-    for route in routes {
-        info!("Processing: {}", route.relative_path);
-        let content = match source.read_to_string(&route.relative_path) {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::warn!("Failed to read {}: {}", route.relative_path, e);
-                continue;
-            }
-        };
-        let relative_path = route.relative_path.clone();
-        match processor.process_string(&content, Path::new(&relative_path), route) {
-            Ok(page) => {
-                pages.push(page);
-            }
-            Err(e) => {
-                tracing::warn!("Failed to process {}: {}", relative_path, e);
-            }
-        }
+    let has_typst_routes = routes.iter().any(|r| r.relative_path.ends_with(".typ"));
+    if has_typst_routes && !TypstProcessor::is_available() {
+        tracing::warn!(
+            "Found .typ files but `typst` CLI is not on PATH — \
+             these files will be skipped. Install typst: https://typst.app"
+        );
     }
+
+    let typst_available = has_typst_routes && TypstProcessor::is_available();
+
+    // Read all file contents sequentially (I/O bound)
+    let route_contents: Vec<_> = routes
+        .into_iter()
+        .filter_map(|route| {
+            // Skip .typ files when typst is not available
+            if route.relative_path.ends_with(".typ") && !typst_available {
+                return None;
+            }
+            match source.read_to_string(&route.relative_path) {
+                Ok(content) => Some((route, content)),
+                Err(e) => {
+                    tracing::warn!("Failed to read {}: {}", route.relative_path, e);
+                    None
+                }
+            }
+        })
+        .collect();
+
+    info!("Processing {} pages in parallel...", route_contents.len());
+
+    // Process all pages in parallel (CPU bound)
+    let mut pages: Vec<PageData> = route_contents
+        .par_iter()
+        .filter_map(|(route, content)| {
+            let relative_path = route.relative_path.clone();
+            let is_typst = relative_path.ends_with(".typ");
+
+            let page_result = if is_typst {
+                // Typst processing — no markdown plugin transforms
+                typst_processor
+                    .as_ref()
+                    .expect("typst_processor must exist for .typ files")
+                    .process_file(content, route.clone())
+            } else {
+                // Markdown processing with plugin transforms
+                let file_path = Path::new(&route.relative_path);
+                let content = plugins
+                    .iter()
+                    .fold(content.clone(), |md, p| p.transform_markdown(md, file_path));
+                md_processor.process_string(&content, Path::new(&relative_path), route.clone())
+            };
+
+            match page_result {
+                Ok(mut page) => {
+                    // Plugin: transform_html (applies to both markdown and typst)
+                    for p in plugins {
+                        let html = std::mem::take(&mut page.content_html);
+                        page.content_html = p.transform_html(html, &page);
+                    }
+
+                    // Compute word count and reading time
+                    let plain_text = strip_html_tags(&page.content_html);
+                    let wc = plain_text.split_whitespace().count() as u32;
+                    page.word_count = Some(wc);
+                    page.reading_time = Some((wc / 200).max(1));
+
+                    // Plugin: on_page_built
+                    for p in plugins {
+                        p.on_page_built(&page);
+                    }
+
+                    Some(page)
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to process {}: {}", relative_path, e);
+                    None
+                }
+            }
+        })
+        .collect();
+
+    // Sort by route path for deterministic ordering
+    pages.sort_by(|a, b| a.route.route_path.cmp(&b.route.route_path));
+
+    // Compute breadcrumbs for each page
+    compute_breadcrumbs(&mut pages);
 
     set_prev_next_links(&mut pages);
 
@@ -61,17 +152,49 @@ pub(crate) fn build_pages(
         check_dead_links(&pages);
     }
 
-    let nav = if config.theme.nav.is_empty() {
+    let mut nav = if config.theme.nav.is_empty() {
         generate_nav(&pages)
     } else {
         config.theme.nav.clone()
     };
 
-    let sidebar = if config.theme.sidebar.is_empty() {
+    let mut sidebar = if config.theme.sidebar.is_empty() {
         generate_sidebar(source, &pages)?
     } else {
         config.theme.sidebar.clone()
     };
+
+    // Plugin: transform_nav and transform_sidebar
+    // We pass cloned nav/sidebar in the view since we need to move the originals
+    // through the transform chain.
+    for p in plugins {
+        let nav_snapshot = nav.clone();
+        let sidebar_snapshot = sidebar.clone();
+        let view = BuiltSiteView {
+            config,
+            pages: &pages,
+            nav: &nav_snapshot,
+            sidebar: &sidebar_snapshot,
+            project_root,
+        };
+        nav = p.transform_nav(nav, &view);
+        sidebar = p.transform_sidebar(sidebar, &view);
+    }
+
+    // Plugin: generate_pages (virtual pages)
+    let mut virtual_pages_collected = Vec::new();
+    for p in plugins {
+        let view = BuiltSiteView {
+            config,
+            pages: &pages,
+            nav: &nav,
+            sidebar: &sidebar,
+            project_root,
+        };
+        let vp = p.generate_pages(&view);
+        virtual_pages_collected.extend(vp);
+    }
+    pages.extend(virtual_pages_collected);
 
     Ok(BuildResult {
         pages,
@@ -93,94 +216,6 @@ pub(crate) fn route_to_file_path(output_dir: &Path, route_path: &str) -> std::pa
         let trimmed = route_path.trim_matches('/');
         output_dir.join(trimmed).join("index.html")
     }
-}
-
-/// Generate sitemap XML string.
-pub(crate) fn generate_sitemap_xml(config: &SiteConfig, pages: &[PageData]) -> Option<String> {
-    let base_url = config.site_url.as_deref()?.trim_end_matches('/');
-    if base_url.is_empty() {
-        return None;
-    }
-
-    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    xml.push_str("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
-
-    for page in pages {
-        let route = &page.route.route_path;
-        let loc = if route == "/" {
-            format!("{}/", base_url)
-        } else {
-            format!("{}{}", base_url, route)
-        };
-
-        xml.push_str("  <url>\n");
-        xml.push_str(&format!("    <loc>{}</loc>\n", loc));
-        if let Some(ref date) = page.last_updated {
-            xml.push_str(&format!("    <lastmod>{}</lastmod>\n", date));
-        }
-        let priority = if matches!(page.frontmatter.page_type, Some(PageType::Home)) {
-            "1.0"
-        } else {
-            "0.7"
-        };
-        xml.push_str(&format!("    <priority>{}</priority>\n", priority));
-        xml.push_str("  </url>\n");
-    }
-
-    xml.push_str("</urlset>\n");
-    Some(xml)
-}
-
-/// Generate Atom feed XML string.
-pub(crate) fn generate_feed_xml(config: &SiteConfig, pages: &[PageData]) -> Option<String> {
-    let base_url = config.site_url.as_deref()?.trim_end_matches('/');
-    if base_url.is_empty() {
-        return None;
-    }
-
-    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    xml.push_str("<feed xmlns=\"http://www.w3.org/2005/Atom\">\n");
-    xml.push_str(&format!("  <title>{}</title>\n", xml_escape(&config.title)));
-    xml.push_str(&format!(
-        "  <subtitle>{}</subtitle>\n",
-        xml_escape(&config.description)
-    ));
-    xml.push_str(&format!(
-        "  <link href=\"{}/\" rel=\"alternate\"/>\n",
-        base_url
-    ));
-    xml.push_str(&format!(
-        "  <link href=\"{}/feed.xml\" rel=\"self\"/>\n",
-        base_url
-    ));
-    xml.push_str(&format!("  <id>{}/</id>\n", base_url));
-
-    for page in pages {
-        if matches!(
-            page.frontmatter.page_type,
-            Some(PageType::Home) | Some(PageType::NotFound)
-        ) {
-            continue;
-        }
-        let url = format!("{}{}", base_url, &page.route.route_path);
-        xml.push_str("  <entry>\n");
-        xml.push_str(&format!("    <title>{}</title>\n", xml_escape(&page.title)));
-        xml.push_str(&format!("    <link href=\"{}\"/>\n", url));
-        xml.push_str(&format!("    <id>{}</id>\n", url));
-        if let Some(ref date) = page.last_updated {
-            xml.push_str(&format!("    <updated>{}T00:00:00Z</updated>\n", date));
-        }
-        if !page.description.is_empty() {
-            xml.push_str(&format!(
-                "    <summary>{}</summary>\n",
-                xml_escape(&page.description)
-            ));
-        }
-        xml.push_str("  </entry>\n");
-    }
-
-    xml.push_str("</feed>\n");
-    Some(xml)
 }
 
 // ---------------------------------------------------------------------------
@@ -246,6 +281,85 @@ fn check_dead_links(pages: &[PageData]) {
     }
 }
 
+/// Compute breadcrumbs for each page from its route path segments.
+fn compute_breadcrumbs(pages: &mut [PageData]) {
+    // Build a map of route_path -> title for quick lookup
+    let title_map: HashMap<String, String> = pages
+        .iter()
+        .map(|p| (p.route.route_path.clone(), p.title.clone()))
+        .collect();
+
+    for page in pages.iter_mut() {
+        let route = &page.route.route_path;
+        if route == "/" {
+            continue;
+        }
+
+        let mut crumbs = vec![PageLink {
+            title: "Home".to_string(),
+            link: "/".to_string(),
+        }];
+
+        let trimmed = route.trim_matches('/');
+        let segments: Vec<&str> = trimmed.split('/').collect();
+        let mut path_acc = String::new();
+
+        for (i, seg) in segments.iter().enumerate() {
+            if i < segments.len() - 1 {
+                // Intermediate directory
+                path_acc.push('/');
+                path_acc.push_str(seg);
+                let dir_route = format!("{}/", path_acc);
+                let title = title_map
+                    .get(&dir_route)
+                    .cloned()
+                    .unwrap_or_else(|| title_case(seg));
+                crumbs.push(PageLink {
+                    title,
+                    link: dir_route,
+                });
+            } else {
+                // Current page (no link needed, but included for display)
+                crumbs.push(PageLink {
+                    title: page.title.clone(),
+                    link: route.clone(),
+                });
+            }
+        }
+
+        page.breadcrumbs = crumbs;
+    }
+}
+
+fn title_case(s: &str) -> String {
+    s.replace('-', " ")
+        .split_whitespace()
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(c) => format!("{}{}", c.to_uppercase(), chars.as_str()),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Simple HTML tag stripper for plain text extraction.
+fn strip_html_tags(html: &str) -> String {
+    let mut result = String::with_capacity(html.len());
+    let mut in_tag = false;
+    for ch in html.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => result.push(ch),
+            _ => {}
+        }
+    }
+    result
+}
+
 pub(crate) fn get_git_last_updated(file_path: &Path) -> Option<String> {
     let output = Command::new("git")
         .args(["log", "-1", "--format=%Y-%m-%d", "--"])
@@ -259,12 +373,4 @@ pub(crate) fn get_git_last_updated(file_path: &Path) -> Option<String> {
     } else {
         None
     }
-}
-
-fn xml_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
 }

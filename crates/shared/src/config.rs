@@ -1,9 +1,9 @@
-use crate::types::{BannerConfig, NavItem, SocialLink};
+use crate::types::{BannerConfig, NavItem, SidebarItem, SocialLink};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-/// Top-level site configuration, parsed from `novel.toml`
+/// Top-level site configuration, parsed from `novel.toml` or `novel.kdl`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SiteConfig {
@@ -32,6 +32,125 @@ pub struct SiteConfig {
     /// Markdown configuration
     #[serde(default)]
     pub markdown: MarkdownConfig,
+    /// Per-plugin configuration (keyed by plugin name)
+    #[serde(default)]
+    pub plugins: HashMap<String, serde_json::Value>,
+    /// Global redirects: old path -> new path
+    #[serde(default)]
+    pub redirects: HashMap<String, String>,
+    /// Enable asset fingerprinting (content hash in CSS/JS filenames)
+    #[serde(default)]
+    pub asset_fingerprint: bool,
+    /// Template engine: "minijinja" (default), "tera", "handlebars"
+    #[serde(default = "default_template_engine")]
+    pub template_engine: String,
+    /// Internationalization configuration
+    #[serde(default)]
+    pub i18n: Option<I18nConfig>,
+    /// General content / collection behaviour
+    #[serde(default)]
+    pub content: ContentConfig,
+    /// Taxonomies (e.g. tags, categories)
+    #[serde(default)]
+    pub taxonomies: HashMap<String, TaxonomyConfig>,
+    /// Pagination defaults
+    #[serde(default)]
+    pub pagination: PaginationConfig,
+    /// Sass / SCSS compilation (requires `sass` feature)
+    #[serde(default)]
+    pub sass: SassConfig,
+    /// Image processing (requires `images` feature)
+    #[serde(default)]
+    pub images: ImagesConfig,
+}
+
+/// Sass entry/output mapping. Paths are relative to the project root.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SassConfig {
+    /// List of (input, output) pairs, e.g. `[["assets/scss/main.scss", "assets/css/main.css"]]`
+    pub entries: Vec<Vec<String>>,
+    /// Additional load paths (project-relative).
+    pub load_paths: Vec<String>,
+}
+
+/// Image processing config.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ImagesConfig {
+    /// Resize widths to generate, e.g. `[400, 800, 1600]`. Empty = disabled.
+    pub sizes: Vec<u32>,
+    /// JPEG/WebP quality (0-100). Default 82.
+    pub quality: u8,
+}
+
+impl Default for ImagesConfig {
+    fn default() -> Self {
+        Self {
+            sizes: Vec::new(),
+            quality: 82,
+        }
+    }
+}
+
+/// General content config (drafts, future, summary separator).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ContentConfig {
+    pub drafts: bool,
+    pub future: bool,
+    pub summary_separator: String,
+}
+
+impl Default for ContentConfig {
+    fn default() -> Self {
+        Self {
+            drafts: false,
+            future: false,
+            summary_separator: "<!-- more -->".to_string(),
+        }
+    }
+}
+
+/// Taxonomy configuration (e.g. tags, categories).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TaxonomyConfig {
+    pub name: String,
+    /// Permalink template, supports `{slug}`. Default `/<key>/{slug}/`.
+    pub permalink: Option<String>,
+    pub paginate_by: Option<usize>,
+    pub feed: bool,
+}
+
+impl Default for TaxonomyConfig {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            permalink: None,
+            paginate_by: None,
+            feed: false,
+        }
+    }
+}
+
+/// Pagination configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PaginationConfig {
+    /// Path segment used for paginated subpages, e.g. "page" -> /posts/page/2/
+    pub page_path: String,
+    /// Whether the first page is at the collection root (rather than /page/1/).
+    pub first_page_in_root: bool,
+}
+
+impl Default for PaginationConfig {
+    fn default() -> Self {
+        Self {
+            page_path: "page".to_string(),
+            first_page_in_root: true,
+        }
+    }
 }
 
 impl Default for SiteConfig {
@@ -49,21 +168,81 @@ impl Default for SiteConfig {
             site_url: None,
             theme: ThemeConfig::default(),
             markdown: MarkdownConfig::default(),
+            plugins: HashMap::new(),
+            redirects: HashMap::new(),
+            asset_fingerprint: false,
+            template_engine: default_template_engine(),
+            i18n: None,
+            content: ContentConfig::default(),
+            taxonomies: HashMap::new(),
+            pagination: PaginationConfig::default(),
+            sass: SassConfig::default(),
+            images: ImagesConfig::default(),
         }
     }
 }
 
 impl SiteConfig {
-    /// Load configuration from a TOML file
+    /// Load configuration from `novel.toml` or `novel.kdl`.
+    ///
+    /// If both files exist, `novel.kdl` takes precedence.
+    /// Falls back to defaults when neither file is present.
     pub fn load(project_root: &Path) -> anyhow::Result<Self> {
-        let config_path = project_root.join("novel.toml");
-        if config_path.exists() {
-            let content = std::fs::read_to_string(&config_path)?;
-            let config: SiteConfig = toml::from_str(&content)?;
-            Ok(config)
+        let kdl_path = project_root.join("novel.kdl");
+        let toml_path = project_root.join("novel.toml");
+
+        if kdl_path.exists() {
+            let content = std::fs::read_to_string(&kdl_path)?;
+            Self::from_kdl(&content)
+        } else if toml_path.exists() {
+            let content = std::fs::read_to_string(&toml_path)?;
+            Self::from_toml(&content)
         } else {
             Ok(Self::default())
         }
+    }
+
+    /// Parse from a TOML string.
+    pub fn from_toml(content: &str) -> anyhow::Result<Self> {
+        let config: SiteConfig = toml::from_str(content)?;
+        Ok(config)
+    }
+
+    /// Parse from a KDL string.
+    pub fn from_kdl(content: &str) -> anyhow::Result<Self> {
+        let doc = kdl::KdlDocument::parse(content).map_err(|e| {
+            let diags: Vec<String> = e
+                .diagnostics
+                .iter()
+                .map(|d| {
+                    format!(
+                        "  {}{}",
+                        d.message.as_deref().unwrap_or("error"),
+                        d.help
+                            .as_ref()
+                            .map(|h| format!(" ({})", h))
+                            .unwrap_or_default()
+                    )
+                })
+                .collect();
+            anyhow::anyhow!("KDL parse error:\n{}", diags.join("\n"))
+        })?;
+        let json_value = crate::kdl_conv::kdl_document_to_value(&doc);
+        let config: SiteConfig = serde_json::from_value(json_value)?;
+        Ok(config)
+    }
+
+    /// Returns the config file path that exists in the project root, if any.
+    pub fn config_path(project_root: &Path) -> Option<PathBuf> {
+        let kdl = project_root.join("novel.kdl");
+        if kdl.exists() {
+            return Some(kdl);
+        }
+        let toml = project_root.join("novel.toml");
+        if toml.exists() {
+            return Some(toml);
+        }
+        None
     }
 
     /// Get the absolute path to the docs root
@@ -87,6 +266,23 @@ pub struct MarkdownConfig {
     pub default_wrap_code: bool,
     /// Check for dead internal links during build
     pub check_dead_links: bool,
+    /// Enable math rendering (KaTeX)
+    #[serde(default)]
+    pub math: bool,
+    /// Enable mermaid diagrams
+    #[serde(default)]
+    pub mermaid: bool,
+    /// Syntax highlighting theme name (default: "base16-ocean.dark")
+    #[serde(default = "default_syntax_theme")]
+    pub syntax_theme: String,
+}
+
+fn default_template_engine() -> String {
+    "minijinja".to_string()
+}
+
+fn default_syntax_theme() -> String {
+    "base16-ocean.dark".to_string()
 }
 
 impl Default for MarkdownConfig {
@@ -95,6 +291,9 @@ impl Default for MarkdownConfig {
             show_line_numbers: false,
             default_wrap_code: false,
             check_dead_links: false,
+            math: false,
+            mermaid: false,
+            syntax_theme: default_syntax_theme(),
         }
     }
 }
@@ -126,4 +325,49 @@ pub struct ThemeConfig {
     pub banner: Option<BannerConfig>,
     /// Source code repository link in navbar
     pub source_link: Option<String>,
+    /// CSS variable overrides (key = CSS variable name without --, value = CSS value)
+    #[serde(default)]
+    pub colors: HashMap<String, String>,
+    /// Path to a custom CSS file (relative to project root)
+    pub custom_css: Option<String>,
+    /// Theme pack: local directory containing override templates (and
+    /// optionally assets). Searched after project `templates/` and before
+    /// the embedded defaults.
+    pub pack: Option<String>,
+    /// Custom 404 page title
+    pub not_found_title: Option<String>,
+    /// Custom 404 page message
+    pub not_found_message: Option<String>,
+}
+
+/// Internationalization configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct I18nConfig {
+    pub default_locale: String,
+    pub locales: Vec<LocaleConfig>,
+}
+
+/// Configuration for a single locale
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocaleConfig {
+    pub code: String,
+    pub name: String,
+    pub dir: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub theme: Option<LocaleThemeOverrides>,
+}
+
+/// Per-locale theme overrides
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LocaleThemeOverrides {
+    pub nav: Option<Vec<NavItem>>,
+    pub sidebar: Option<HashMap<String, Vec<SidebarItem>>>,
+    pub footer: Option<String>,
+    pub edit_link_text: Option<String>,
+    pub last_updated_text: Option<String>,
 }

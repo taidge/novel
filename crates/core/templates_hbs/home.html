@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="{{ site.lang }}" data-theme="light">
+<head>
+    {{> _head }}
+</head>
+<body>
+    <a href="#main-content" class="skip-to-content">Skip to content</a>
+
+    {{#if site.theme.banner}}
+    <div class="banner" id="site-banner">
+        <div class="banner-inner">
+            {{#if site.theme.banner.link}}<a href="{{ site.theme.banner.link }}">{{ site.theme.banner.text }}</a>{{else}}{{ site.theme.banner.text }}{{/if}}
+        </div>
+        {{#if site.theme.banner.dismissible}}
+        <button class="banner-close" onclick="dismissBanner()" aria-label="Dismiss">&times;</button>
+        {{/if}}
+    </div>
+    {{/if}}
+
+    {{> _navbar }}
+
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <div class="page-container">
+        <div id="main-content" class="home-layout">
+            {{#if page.frontmatter.hero}}
+            <section class="hero">
+                {{#if page.frontmatter.hero.image}}
+                <div class="hero-image">
+                    <img src="{{ page.frontmatter.hero.image.src }}" alt="{{ page.frontmatter.hero.image.alt }}">
+                </div>
+                {{/if}}
+                <h1 class="hero-name">{{ page.frontmatter.hero.name }}</h1>
+                {{#if page.frontmatter.hero.text}}
+                <p class="hero-text">{{ page.frontmatter.hero.text }}</p>
+                {{/if}}
+                {{#if page.frontmatter.hero.tagline}}
+                <p class="hero-tagline">{{ page.frontmatter.hero.tagline }}</p>
+                {{/if}}
+                {{#if page.frontmatter.hero.actions}}
+                <div class="hero-actions">
+                    {{#each page.frontmatter.hero.actions}}
+                    <a href="{{ this.link }}" class="hero-action {{#if this.theme}}{{ this.theme }}{{else}}brand{{/if}}">{{ this.text }}</a>
+                    {{/each}}
+                </div>
+                {{/if}}
+            </section>
+            {{/if}}
+
+            {{#if page.frontmatter.features}}
+            <section class="features">
+                <div class="features-grid">
+                    {{#each page.frontmatter.features}}
+                    <div class="feature-card"{{#if this.link}} onclick="window.location='{{ this.link }}'" style="cursor:pointer"{{/if}}>
+                        {{#if this.icon}}
+                        <div class="feature-icon">{{{ this.icon }}}</div>
+                        {{/if}}
+                        <h3 class="feature-title">{{ this.title }}</h3>
+                        <p class="feature-details">{{ this.details }}</p>
+                    </div>
+                    {{/each}}
+                </div>
+            </section>
+            {{/if}}
+
+            {{#if page.content_html}}
+            <section class="home-content markdown-body">
+                {{{ page.content_html }}}
+            </section>
+            {{/if}}
+        </div>
+    </div>
+
+    <button class="back-to-top" id="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3l6 6H2z"/></svg>
+    </button>
+
+    {{> _footer }}
+</body>
+</html>

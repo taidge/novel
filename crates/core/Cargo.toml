@@ -3,11 +3,19 @@ name = "novel-core"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = []
+salvo = ["dep:salvo"]
+tera = ["dep:tera"]
+handlebars = ["dep:handlebars"]
+sass = ["dep:grass"]
+images = ["dep:image"]
+
 [dependencies]
+salvo = { workspace = true, optional = true }
 novel-shared = { path = "../shared" }
 serde = { workspace = true }
 serde_json = { workspace = true }
-toml = { workspace = true }
 pulldown-cmark = { workspace = true }
 gray_matter = { workspace = true }
 syntect = { workspace = true }
@@ -15,8 +23,15 @@ walkdir = { workspace = true }
 minijinja = { workspace = true }
 tracing = { workspace = true }
 anyhow = { workspace = true }
+thiserror = { workspace = true }
+rayon = { workspace = true }
 slug = { workspace = true }
 regex = { workspace = true }
 once_cell = { workspace = true }
 globset = { workspace = true }
 rust-embed = { workspace = true }
+tera = { workspace = true, optional = true }
+handlebars = { workspace = true, optional = true }
+toml = { workspace = true }
+grass = { workspace = true, optional = true }
+image = { workspace = true, optional = true }

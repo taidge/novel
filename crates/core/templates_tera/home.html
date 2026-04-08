@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}{{ site.title }} - {{ site.description }}{% endblock %}
+
+{% block content %}
+<div id="main-content" class="home-layout">
+    {% if page.frontmatter.hero %}
+    <section class="hero">
+        {% if page.frontmatter.hero.image %}
+        <div class="hero-image">
+            <img src="{{ page.frontmatter.hero.image.src }}" alt="{{ page.frontmatter.hero.image.alt | default(value="") }}">
+        </div>
+        {% endif %}
+        <h1 class="hero-name">{{ page.frontmatter.hero.name }}</h1>
+        {% if page.frontmatter.hero.text %}
+        <p class="hero-text">{{ page.frontmatter.hero.text }}</p>
+        {% endif %}
+        {% if page.frontmatter.hero.tagline %}
+        <p class="hero-tagline">{{ page.frontmatter.hero.tagline }}</p>
+        {% endif %}
+        {% if page.frontmatter.hero.actions %}
+        <div class="hero-actions">
+            {% for action in page.frontmatter.hero.actions %}
+            <a href="{{ action.link }}" class="hero-action {{ action.theme | default(value="brand") }}">{{ action.text }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    {% if page.frontmatter.features %}
+    <section class="features">
+        <div class="features-grid">
+            {% for feature in page.frontmatter.features %}
+            <div class="feature-card"{% if feature.link %} onclick="window.location='{{ feature.link }}'" style="cursor:pointer"{% endif %}>
+                {% if feature.icon %}
+                <div class="feature-icon">{{ feature.icon }}</div>
+                {% endif %}
+                <h3 class="feature-title">{{ feature.title }}</h3>
+                <p class="feature-details">{{ feature.details }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if page.content_html %}
+    <section class="home-content markdown-body">
+        {{ page.content_html|safe }}
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

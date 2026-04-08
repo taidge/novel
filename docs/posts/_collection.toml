@@ -1,0 +1,6 @@
+layout = "blog"
+list_layout = "list"
+sort_by = "date"
+order = "desc"
+paginate_by = 2
+publish = true

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.title }} | {{ site.title }}{% endblock %}
+{% block description %}{{ page.description }}{% endblock %}
+
+{% block head %}
+{% if page.frontmatter.head %}
+{% for tag in page.frontmatter.head %}
+<{{ tag.tag }}{% for key, val in tag.attrs %} {{ key }}="{{ val }}"{% endfor %}>{% if tag.content %}{{ tag.content }}</{{ tag.tag }}>{% endif %}
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="blog-layout">
+    <main id="main-content" class="blog-content">
+        <article class="markdown-body">
+            <header class="blog-header">
+                <h1>{{ page.title }}</h1>
+                {% if page.last_updated %}
+                <time class="blog-date">{{ page.last_updated }}</time>
+                {% endif %}
+                {% if page.description %}
+                <p class="blog-description">{{ page.description }}</p>
+                {% endif %}
+            </header>
+            {{ page.content_html|safe }}
+        </article>
+
+        {% if page.prev_page or page.next_page %}
+        <nav class="prev-next">
+            {% if page.prev_page %}
+            <a href="{{ page.prev_page.link }}" class="prev-next-link prev">
+                <span class="prev-next-label">Previous</span>
+                <span class="prev-next-title">{{ page.prev_page.title }}</span>
+            </a>
+            {% else %}
+            <span></span>
+            {% endif %}
+            {% if page.next_page %}
+            <a href="{{ page.next_page.link }}" class="prev-next-link next">
+                <span class="prev-next-label">Next</span>
+                <span class="prev-next-title">{{ page.next_page.title }}</span>
+            </a>
+            {% else %}
+            <span></span>
+            {% endif %}
+        </nav>
+        {% endif %}
+    </main>
+</div>
+{% endblock %}

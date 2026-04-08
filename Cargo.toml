@@ -12,6 +12,7 @@ license = "MIT"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "1"
+kdl = "6"
 
 # Markdown
 pulldown-cmark = { version = "0.13", features = ["simd"] }
@@ -25,6 +26,7 @@ clap = { version = "4", features = ["derive"] }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
 
 # File system
 walkdir = "2"
@@ -32,9 +34,7 @@ notify = "8"
 globset = "0.4"
 
 # Web server
-axum = "0.8"
-tower-http = { version = "0.6", features = ["fs", "cors"] }
-tower-livereload = "0.10"
+salvo = { version = "0.77", features = ["serve-static", "sse"] }
 
 # Templating
 minijinja = { version = "2", features = ["loader"] }
@@ -46,8 +46,16 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Embedding
 rust-embed = "8"
 
+# Alternative template engines
+tera = "1"
+handlebars = "6"
+
 # Utilities
 anyhow = "1"
+thiserror = "2"
+rayon = "1"
 slug = "0.1"
+grass = { version = "0.13", default-features = false }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 regex = "1"
 once_cell = "1"
