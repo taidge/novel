@@ -674,11 +674,20 @@ impl BuiltSite {
     pub fn write_to(&self, dir: impl AsRef<Path>) -> Result<()> {
         let output_dir = dir.as_ref();
 
-        // Clean & create
+        // Ensure the output directory exists and is empty.
+        //
+        // We deliberately do NOT try to remove `output_dir` itself. On Windows
+        // it's common for a file watcher (VS Code, file explorers, indexers)
+        // to hold an exclusive handle on the top-level output directory via
+        // `ReadDirectoryChangesW`, which makes `remove_dir_all` fail with
+        // `os error 32` for as long as that watcher lives. Clearing the
+        // *contents* is functionally equivalent and does not require
+        // ownership of the directory handle.
         if output_dir.exists() {
-            std::fs::remove_dir_all(output_dir)?;
+            clean_dir_contents(output_dir)?;
+        } else {
+            std::fs::create_dir_all(output_dir)?;
         }
-        std::fs::create_dir_all(output_dir)?;
 
         // Assets (with optional fingerprinting)
         let assets_dir = output_dir.join("assets");
@@ -1137,6 +1146,80 @@ fn simple_hash(data: &[u8]) -> u64 {
         hash = hash.wrapping_mul(0x100000001b3);
     }
     hash
+}
+
+/// Remove every entry inside `path` without removing `path` itself.
+///
+/// Why not just `remove_dir_all` the whole output directory? On Windows, any
+/// process holding the top-level directory handle open via
+/// `ReadDirectoryChangesW` (VS Code, other IDEs, search indexers, file
+/// explorers) will make `remove_dir_all` or `rename` fail with `os error 32`
+/// for as long as that watcher lives, because Windows requires exclusive
+/// access to delete or rename a directory. Deleting the *contents* of the
+/// directory does not require ownership of the directory handle, so it works
+/// even under an active watcher — which is the common case during local
+/// development. Semantically this is equivalent: `write_to` re-creates every
+/// expected child afterwards.
+fn clean_dir_contents(path: &Path) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(path)? {
+        let entry = entry?;
+        let child = entry.path();
+        let ft = entry.file_type()?;
+        if ft.is_dir() {
+            remove_dir_all_retry(&child)?;
+        } else {
+            remove_file_retry(&child)?;
+        }
+    }
+    Ok(())
+}
+
+/// Retry wrapper around [`std::fs::remove_dir_all`] for *nested*
+/// subdirectories inside the output dir. Those subdirectories are not the
+/// ones held by a user-level file watcher, but they may still be touched
+/// briefly by antivirus / the Search Indexer during a rebuild, which can
+/// flake `remove_dir_all` with `os error 32`. A short retry loop makes the
+/// operation much more reliable for end users without changing semantics on
+/// success.
+fn remove_dir_all_retry(path: &Path) -> std::io::Result<()> {
+    retry_io(|| std::fs::remove_dir_all(path), path)
+}
+
+/// Retry wrapper around [`std::fs::remove_file`] — same motivation as
+/// [`remove_dir_all_retry`].
+fn remove_file_retry(path: &Path) -> std::io::Result<()> {
+    retry_io(|| std::fs::remove_file(path), path)
+}
+
+fn retry_io<F: FnMut() -> std::io::Result<()>>(
+    mut op: F,
+    path: &Path,
+) -> std::io::Result<()> {
+    // Delays in milliseconds: 0, 25, 50, 100, 200, 400, 800 — ~1.6s total.
+    const DELAYS_MS: &[u64] = &[0, 25, 50, 100, 200, 400, 800];
+
+    let mut last_err = None;
+    for (attempt, delay) in DELAYS_MS.iter().enumerate() {
+        if *delay > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(*delay));
+        }
+        match op() {
+            Ok(()) => return Ok(()),
+            // Already gone — treat as success.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => {
+                if attempt + 1 < DELAYS_MS.len() {
+                    tracing::debug!(
+                        "fs op on {} attempt {} failed: {e}; retrying",
+                        path.display(),
+                        attempt + 1
+                    );
+                }
+                last_err = Some(e);
+            }
+        }
+    }
+    Err(last_err.expect("at least one attempt runs"))
 }
 
 fn find_sidebar_key(
