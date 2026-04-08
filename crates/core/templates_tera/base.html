@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ site.title }}{% endblock %}</title>
     <meta name="description" content="{% block description %}{{ site.description }}{% endblock %}">
+    {% if page and page.frontmatter.noindex %}<meta name="robots" content="noindex, nofollow">{% endif %}
     {% if site.icon %}<link rel="icon" href="{{ site.icon }}">{% endif %}
     <link rel="stylesheet" href="{{ site.base }}assets/{{ asset_css | default(value="style.css") }}">
     {% if theme_css_overrides %}<style>:root, [data-theme="light"] { {{ theme_css_overrides | safe }} }</style>{% endif %}
@@ -35,6 +36,17 @@
     <link rel="canonical" href="{{ page.frontmatter.canonical }}">
     {% elif site.site_url %}
     <link rel="canonical" href="{{ site.site_url }}{{ page.route.route_path }}">
+    {% endif %}
+    {% endif %}
+    {% endblock %}
+    {% block json_ld %}
+    {% if site.site_url and not (page and page.frontmatter.noindex) %}
+    {% if page and (page.frontmatter.page_type == "home" or page.frontmatter.layout == "home") %}
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":{{ site.title | json_encode | safe }},"description":{{ site.description | json_encode | safe }},"url":{{ site.site_url | json_encode | safe }}}</script>
+    {% elif page and (page.frontmatter.layout == "blog" or page.collection or page.date) %}
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":{{ page.title | json_encode | safe }},"description":{{ page.description | json_encode | safe }},"url":{{ site.site_url ~ page.route.route_path | json_encode | safe }}{% if page.date %},"datePublished":{{ page.date | json_encode | safe }}{% endif %}{% if page.frontmatter.updated %},"dateModified":{{ page.frontmatter.updated | json_encode | safe }}{% elif page.last_updated %},"dateModified":{{ page.last_updated | json_encode | safe }}{% endif %}{% if page.frontmatter.og_image %},"image":{{ page.frontmatter.og_image | json_encode | safe }}{% endif %}{% if page.frontmatter.authors %},"author":[{% for a in page.frontmatter.authors %}{"@type":"Person","name":{{ a | json_encode | safe }}}{% if not loop.last %},{% endif %}{% endfor %}]{% endif %}}</script>
+    {% elif page %}
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":{{ page.title | json_encode | safe }},"description":{{ page.description | json_encode | safe }},"url":{{ site.site_url ~ page.route.route_path | json_encode | safe }}{% if page.last_updated %},"dateModified":{{ page.last_updated | json_encode | safe }}{% endif %}}</script>
     {% endif %}
     {% endif %}
     {% endblock %}

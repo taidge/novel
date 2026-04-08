@@ -4,3 +4,6 @@ dist/
 _*.md
 .tmp*
 .claude
+
+examples/*/dist/
+examples/*/target/

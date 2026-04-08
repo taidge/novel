@@ -25,6 +25,8 @@ impl HandlebarsRenderer {
 
         // Register built-in helpers
         hbs.register_helper("eq", Box::new(eq_helper));
+        hbs.register_helper("json", Box::new(json_helper));
+        hbs.register_helper("concat", Box::new(concat_helper));
 
         // Load embedded templates
         for name in HbsTemplates::iter() {
@@ -78,5 +80,47 @@ fn eq_helper(
     let a = h.param(0).and_then(|v| v.value().as_str()).unwrap_or("");
     let b = h.param(1).and_then(|v| v.value().as_str()).unwrap_or("");
     out.write(if a == b { "true" } else { "" })?;
+    Ok(())
+}
+
+/// Handlebars helper for JSON serialization: `{{{json value}}}`.
+///
+/// Used to embed values safely inside `<script type="application/ld+json">`
+/// blocks. The triple-mustache `{{{ }}}` form must be used so the output is
+/// not HTML-escaped a second time.
+fn json_helper(
+    h: &handlebars::Helper,
+    _: &Handlebars,
+    _: &handlebars::Context,
+    _: &mut handlebars::RenderContext,
+    out: &mut dyn handlebars::Output,
+) -> handlebars::HelperResult {
+    let value = h.param(0).map(|v| v.value()).cloned().unwrap_or(serde_json::Value::Null);
+    let serialized = serde_json::to_string(&value)
+        .map_err(|e| handlebars::RenderErrorReason::Other(e.to_string()))?;
+    out.write(&serialized)?;
+    Ok(())
+}
+
+/// Handlebars helper for string concatenation: `{{concat a b c}}`.
+///
+/// Treats every argument as a string (missing / null values become ""). Useful
+/// for building URLs like `{{concat site.site_url page.route.route_path}}`.
+fn concat_helper(
+    h: &handlebars::Helper,
+    _: &Handlebars,
+    _: &handlebars::Context,
+    _: &mut handlebars::RenderContext,
+    out: &mut dyn handlebars::Output,
+) -> handlebars::HelperResult {
+    let mut buf = String::new();
+    for param in h.params() {
+        match param.value() {
+            serde_json::Value::String(s) => buf.push_str(s),
+            serde_json::Value::Null => {}
+            other => buf.push_str(&other.to_string()),
+        }
+    }
+    out.write(&buf)?;
     Ok(())
 }

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+members = ["crates/*", "examples/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -37,7 +37,7 @@ globset = "0.4"
 salvo = { version = "0.77", features = ["serve-static", "sse"] }
 
 # Templating
-minijinja = { version = "2", features = ["loader"] }
+minijinja = { version = "2", features = ["loader", "json"] }
 
 # Logging
 tracing = "0.1"

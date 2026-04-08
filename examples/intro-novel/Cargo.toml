@@ -1,0 +1,15 @@
+[package]
+name = "intro-novel"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "intro-novel"
+path = "src/main.rs"
+
+[dependencies]
+novel-core = { path = "../../crates/core" }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

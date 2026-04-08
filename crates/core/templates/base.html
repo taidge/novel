@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ site.title }}{% endblock %}</title>
     <meta name="description" content="{% block description %}{{ site.description }}{% endblock %}">
+    {% if page and page.frontmatter.noindex %}<meta name="robots" content="noindex, nofollow">{% endif %}
     {% if site.icon %}<link rel="icon" href="{{ site.icon }}">{% endif %}
     <link rel="stylesheet" href="{{ site.base }}assets/{{ asset_css | default('style.css') }}">
     {% if theme_css_overrides %}<style>:root, [data-theme="light"] { {{ theme_css_overrides | safe }} }</style>{% endif %}
@@ -39,6 +40,17 @@
     <link rel="canonical" href="{{ page.frontmatter.canonical }}">
     {% elif site.site_url %}
     <link rel="canonical" href="{{ site.site_url }}{{ page.route.route_path }}">
+    {% endif %}
+    {% endif %}
+    {% endblock %}
+    {% block json_ld %}
+    {% if site.site_url and not (page and page.frontmatter.noindex) %}
+    {% if page and (page.frontmatter.page_type == "home" or page.frontmatter.layout == "home") %}
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":{{ site.title | tojson }},"description":{{ site.description | tojson }},"url":{{ site.site_url | tojson }}}</script>
+    {% elif page and (page.frontmatter.layout == "blog" or page.collection or page.date) %}
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":{{ page.title | tojson }},"description":{{ page.description | tojson }},"url":{{ (site.site_url ~ page.route.route_path) | tojson }}{% if page.date %},"datePublished":{{ page.date | tojson }}{% endif %}{% if page.frontmatter.updated %},"dateModified":{{ page.frontmatter.updated | tojson }}{% elif page.last_updated %},"dateModified":{{ page.last_updated | tojson }}{% endif %}{% if page.frontmatter.og_image %},"image":{{ page.frontmatter.og_image | tojson }}{% endif %}{% if page.frontmatter.authors %},"author":[{% for a in page.frontmatter.authors %}{"@type":"Person","name":{{ a | tojson }}}{% if not loop.last %},{% endif %}{% endfor %}]{% endif %}}</script>
+    {% elif page %}
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":{{ page.title | tojson }},"description":{{ page.description | tojson }},"url":{{ (site.site_url ~ page.route.route_path) | tojson }}{% if page.last_updated %},"dateModified":{{ page.last_updated | tojson }}{% endif %}}</script>
     {% endif %}
     {% endif %}
     {% endblock %}
