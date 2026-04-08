@@ -68,8 +68,8 @@ fn file_path_to_route(relative_path: &Path) -> String {
 
     if without_ext == "index" {
         "/".to_string()
-    } else if without_ext.ends_with("/index") {
-        format!("/{}/", &without_ext[..without_ext.len() - 6])
+    } else if let Some(stripped) = without_ext.strip_suffix("/index") {
+        format!("/{}/", stripped)
     } else {
         format!("/{}", without_ext)
     }

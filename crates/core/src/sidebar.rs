@@ -87,18 +87,18 @@ fn load_sidebar_from_content(
                 if let Some(sub_entries) = sub_items {
                     let sub_items: Vec<SidebarItem> = sub_entries
                         .into_iter()
-                        .filter_map(|e| match e {
+                        .map(|e| match e {
                             MetaEntry::Simple(name) => {
                                 let link = format!("{}/{}", prefix, name);
-                                Some(SidebarItem::Link {
+                                SidebarItem::Link {
                                     text: title_case(&name),
                                     link,
-                                })
+                                }
                             }
                             MetaEntry::Object { text, link, .. } => {
                                 let link = link
                                     .unwrap_or_else(|| format!("{}/{}", prefix, slugify(&text)));
-                                Some(SidebarItem::Link { text, link })
+                                SidebarItem::Link { text, link }
                             }
                         })
                         .collect();

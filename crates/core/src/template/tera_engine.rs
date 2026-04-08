@@ -38,11 +38,11 @@ impl TeraRenderer {
                 for entry in std::fs::read_dir(&template_dir)? {
                     let entry = entry?;
                     let path = entry.path();
-                    if path.is_file() {
-                        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                            let content = std::fs::read_to_string(&path)?;
-                            tera.add_raw_template(name, &content)?;
-                        }
+                    if path.is_file()
+                        && let Some(name) = path.file_name().and_then(|n| n.to_str())
+                    {
+                        let content = std::fs::read_to_string(&path)?;
+                        tera.add_raw_template(name, &content)?;
                     }
                 }
             }

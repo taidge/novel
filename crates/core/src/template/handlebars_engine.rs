@@ -46,12 +46,12 @@ impl HandlebarsRenderer {
                 for entry in std::fs::read_dir(&template_dir)? {
                     let entry = entry?;
                     let path = entry.path();
-                    if path.is_file() {
-                        if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                            let content = std::fs::read_to_string(&path)?;
-                            let tmpl_name = file_name.trim_end_matches(".html");
-                            hbs.register_template_string(tmpl_name, &content)?;
-                        }
+                    if path.is_file()
+                        && let Some(file_name) = path.file_name().and_then(|n| n.to_str())
+                    {
+                        let content = std::fs::read_to_string(&path)?;
+                        let tmpl_name = file_name.trim_end_matches(".html");
+                        hbs.register_template_string(tmpl_name, &content)?;
                     }
                 }
             }

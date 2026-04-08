@@ -213,12 +213,12 @@ fn fnv1a(data: &[u8]) -> u64 {
 /// Extract the content between `<body>` and `</body>` tags.
 /// Falls back to the full string if no body tags are found.
 fn extract_body_content(html: &str) -> String {
-    if let Some(body_start) = html.find("<body") {
-        if let Some(tag_end) = html[body_start..].find('>') {
-            let content_start = body_start + tag_end + 1;
-            if let Some(body_end) = html.find("</body>") {
-                return html[content_start..body_end].trim().to_string();
-            }
+    if let Some(body_start) = html.find("<body")
+        && let Some(tag_end) = html[body_start..].find('>')
+    {
+        let content_start = body_start + tag_end + 1;
+        if let Some(body_end) = html.find("</body>") {
+            return html[content_start..body_end].trim().to_string();
         }
     }
     html.to_string()

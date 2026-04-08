@@ -95,15 +95,15 @@ impl MiniJinjaRenderer {
             });
 
         env.set_loader(move |name| {
-            if let Some(ref dir) = template_dir {
-                if let Some(template) = load_template_from_dir(dir, name)? {
-                    return Ok(Some(template));
-                }
+            if let Some(ref dir) = template_dir
+                && let Some(template) = load_template_from_dir(dir, name)?
+            {
+                return Ok(Some(template));
             }
-            if let Some(ref dir) = theme_pack_dir {
-                if let Some(template) = load_template_from_dir(dir, name)? {
-                    return Ok(Some(template));
-                }
+            if let Some(ref dir) = theme_pack_dir
+                && let Some(template) = load_template_from_dir(dir, name)?
+            {
+                return Ok(Some(template));
             }
             load_embedded_template(name)
         });
