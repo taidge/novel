@@ -1,9 +1,9 @@
-use anyhow::Result;
 use handlebars::Handlebars;
 use rust_embed::Embed;
 use std::path::Path;
 
 use super::{RenderContext, TemplateRenderer};
+use crate::error::{NovelError, NovelResult};
 
 #[derive(Embed)]
 #[folder = "templates_hbs/"]
@@ -19,7 +19,7 @@ pub struct HandlebarsRenderer {
 }
 
 impl HandlebarsRenderer {
-    pub fn new(project_root: Option<&Path>) -> Result<Self> {
+    pub fn new(project_root: Option<&Path>) -> NovelResult<Self> {
         let mut hbs = Handlebars::new();
         hbs.set_strict_mode(false);
 
@@ -33,10 +33,13 @@ impl HandlebarsRenderer {
             let name_str = name.as_ref();
             if let Some(file) = HbsTemplates::get(name_str) {
                 let content = std::str::from_utf8(file.data.as_ref()).map_err(|e| {
-                    anyhow::anyhow!("Embedded hbs template {name_str} is not valid UTF-8: {e}")
+                    NovelError::Template(format!(
+                        "Embedded hbs template {name_str} is not valid UTF-8: {e}"
+                    ))
                 })?;
                 let tmpl_name = name_str.trim_end_matches(".html");
-                hbs.register_template_string(tmpl_name, content)?;
+                hbs.register_template_string(tmpl_name, content)
+                    .map_err(|e| NovelError::Template(e.to_string()))?;
             }
         }
 
@@ -52,7 +55,8 @@ impl HandlebarsRenderer {
                     {
                         let content = std::fs::read_to_string(&path)?;
                         let tmpl_name = file_name.trim_end_matches(".html");
-                        hbs.register_template_string(tmpl_name, &content)?;
+                        hbs.register_template_string(tmpl_name, &content)
+                            .map_err(|e| NovelError::Template(e.to_string()))?;
                     }
                 }
             }
@@ -63,10 +67,12 @@ impl HandlebarsRenderer {
 }
 
 impl TemplateRenderer for HandlebarsRenderer {
-    fn render(&self, template_name: &str, ctx: &RenderContext) -> Result<String> {
+    fn render(&self, template_name: &str, ctx: &RenderContext) -> NovelResult<String> {
         // Template name comes in as "doc.html", strip extension for lookup
         let tmpl_name = template_name.trim_end_matches(".html");
-        Ok(self.hbs.render(tmpl_name, ctx)?)
+        self.hbs
+            .render(tmpl_name, ctx)
+            .map_err(|e| NovelError::Template(e.to_string()))
     }
 }
 

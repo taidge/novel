@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>(function(){try{var s=localStorage.getItem('novel-theme');if(s){document.documentElement.setAttribute('data-theme',s);}else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}})();</script>
+    <meta name="novel-base" content="{{ site.base }}">
     <title>{% block title %}{{ site.title }}{% endblock %}</title>
     <meta name="description" content="{% block description %}{{ site.description }}{% endblock %}">
     {% if page and page.frontmatter.noindex %}<meta name="robots" content="noindex, nofollow">{% endif %}
@@ -13,6 +15,19 @@
     <script src="{{ site.base }}assets/{{ asset_js | default('main.js') }}" defer></script>
     {% if site.site_url %}<link rel="alternate" type="application/atom+xml" title="{{ site.title }}" href="{{ site.base }}feed.xml">{% endif %}
     {% if site.site_url %}<link rel="sitemap" type="application/xml" title="Sitemap" href="{{ site.base }}sitemap.xml">{% endif %}
+    {# hreflang alternate links — emitted when this page has translations
+       (i18n mode with the same relative_path in multiple locales). T-UI-4 #}
+    {% if page and page.translations %}
+    {% set abs_base = site.site_url or '' %}
+    {% for t in page.translations %}
+    <link rel="alternate" hreflang="{{ t[0] }}" href="{{ abs_base }}{{ t[1] }}">
+    {% endfor %}
+    {% if site.i18n and site.i18n.default_locale %}
+    {% for t in page.translations %}{% if t[0] == site.i18n.default_locale %}
+    <link rel="alternate" hreflang="x-default" href="{{ abs_base }}{{ t[1] }}">
+    {% endif %}{% endfor %}
+    {% endif %}
+    {% endif %}
     {% if site.markdown.math %}
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.js"></script>
@@ -96,10 +111,12 @@
                 <a href="{{ social.link }}" class="social-link" target="_blank" rel="noopener">{{ social.icon }}</a>
                 {% endfor %}
                 {% endif %}
+                {% if site.theme.dark_mode %}
                 <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme" aria-pressed="false">
                     <span class="theme-icon-light">☀️</span>
                     <span class="theme-icon-dark">🌙</span>
                 </button>
+                {% endif %}
             </div>
         </div>
         {% block nav_extra %}{% endblock %}

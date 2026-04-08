@@ -119,13 +119,9 @@ function toggleSidebar() {
 
     function loadIndex() {
         if (searchIndex) return Promise.resolve();
-        var base = '';
-        var link = document.querySelector('link[rel="stylesheet"]');
-        if (link && link.href) {
-            var idx = link.href.indexOf('assets/');
-            if (idx >= 0) base = link.href.substring(0, idx);
-        }
-        if (!base) base = '/';
+        var meta = document.querySelector('meta[name="novel-base"]');
+        var base = (meta && meta.content) ? meta.content : '/';
+        if (!base.endsWith('/')) base += '/';
         return fetch(base + 'assets/search-index.json')
             .then(function(r) { return r.json(); })
             .then(function(data) { searchIndex = data; })
@@ -344,23 +340,61 @@ document.addEventListener('click', function(e) {
     });
 });
 
-// ========== Tabs ==========
+// ========== Tabs (WAI-ARIA Tabs Pattern) ==========
+// Supports both `::: tabs` (class .tabs-container) and `::: code-group`
+// (class .code-group). Keyboard navigation: Left/Right/Home/End cycle tabs
+// inside the same tablist.
+
+function _novelTabContainer(el) {
+    return el.closest('.tabs-container, .code-group');
+}
+
+function _novelActivateTab(container, btn) {
+    var tabId = btn.dataset.tab;
+    container.querySelectorAll('.tab-btn').forEach(function(b) {
+        var isActive = b === btn;
+        b.classList.toggle('active', isActive);
+        b.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        b.setAttribute('tabindex', isActive ? '0' : '-1');
+    });
+    container.querySelectorAll('.tab-panel').forEach(function(p) {
+        var isActive = p.dataset.tab === tabId;
+        p.classList.toggle('active', isActive);
+        if (isActive) {
+            p.removeAttribute('hidden');
+        } else {
+            p.setAttribute('hidden', '');
+        }
+    });
+}
+
 document.addEventListener('click', function(e) {
     var btn = e.target.closest('.tab-btn');
     if (!btn) return;
-    var container = btn.closest('.tabs-container');
+    var container = _novelTabContainer(btn);
     if (!container) return;
+    _novelActivateTab(container, btn);
+});
 
-    var tabId = btn.dataset.tab;
-
-    // Update buttons
-    container.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-    btn.classList.add('active');
-
-    // Update panels
-    container.querySelectorAll('.tab-panel').forEach(function(p) {
-        p.classList.toggle('active', p.dataset.tab === tabId);
-    });
+document.addEventListener('keydown', function(e) {
+    var btn = e.target.closest('.tab-btn');
+    if (!btn) return;
+    var container = _novelTabContainer(btn);
+    if (!container) return;
+    var tabs = Array.from(container.querySelectorAll('.tab-btn'));
+    var idx = tabs.indexOf(btn);
+    if (idx < 0) return;
+    var next = null;
+    switch (e.key) {
+        case 'ArrowLeft':  next = tabs[(idx - 1 + tabs.length) % tabs.length]; break;
+        case 'ArrowRight': next = tabs[(idx + 1) % tabs.length]; break;
+        case 'Home':       next = tabs[0]; break;
+        case 'End':        next = tabs[tabs.length - 1]; break;
+        default: return;
+    }
+    e.preventDefault();
+    _novelActivateTab(container, next);
+    next.focus();
 });
 
 // ========== Image Zoom ==========
@@ -376,13 +410,15 @@ document.addEventListener('click', function(e) {
     overlay.appendChild(zoomed);
     document.body.appendChild(overlay);
 
-    overlay.addEventListener('click', function() { overlay.remove(); });
-    document.addEventListener('keydown', function handler(e) {
-        if (e.key === 'Escape') {
-            overlay.remove();
-            document.removeEventListener('keydown', handler);
-        }
-    });
+    function onKey(ev) {
+        if (ev.key === 'Escape') close();
+    }
+    function close() {
+        overlay.remove();
+        document.removeEventListener('keydown', onKey);
+    }
+    overlay.addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
 });
 
 // ========== Back to Top ==========

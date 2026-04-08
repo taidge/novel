@@ -14,7 +14,7 @@ Use `#` through `######` for headings. Each heading gets an anchor link automati
 
 ## Links
 
-- [Internal link](/en/guide/getting-started)
+- [Internal link](/guide/getting-started)
 - [External link](https://github.com) (opens in new tab automatically)
 
 ## Lists

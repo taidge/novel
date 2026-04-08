@@ -1,18 +1,20 @@
-use anyhow::Result;
 use novel_shared::config::SiteConfig;
 use novel_shared::{NavItem, PageData, PageLink, PageType, SidebarItem};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::process::Command;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tracing::info;
 
+use crate::error::NovelResult;
 use crate::markdown::{MarkdownProcessor, collect_internal_links};
 use crate::plugin::{BuiltSiteView, Plugin};
 use crate::routing::scan_routes;
 use crate::sidebar::{generate_nav, generate_sidebar};
 use crate::source::DocsSource;
 use crate::typst_processor::TypstProcessor;
+use crate::util::strip_html_tags;
 
 /// Internal build result
 pub(crate) struct BuildResult {
@@ -30,7 +32,7 @@ pub(crate) fn build_pages(
     config: &SiteConfig,
     project_root: Option<&Path>,
     plugins: &[Box<dyn Plugin>],
-) -> Result<BuildResult> {
+) -> NovelResult<BuildResult> {
     // Plugin: on_pre_build
     for p in plugins {
         p.on_pre_build(config);
@@ -56,18 +58,30 @@ pub(crate) fn build_pages(
 
     // Check typst CLI availability once if there are .typ files
     info!("Scanning routes...");
-    let routes = scan_routes(source)?;
+    let routes = scan_routes(source);
     info!("Found {} routes", routes.len());
 
     let has_typst_routes = routes.iter().any(|r| r.relative_path.ends_with(".typ"));
-    if has_typst_routes && !TypstProcessor::is_available() {
+    if has_typst_routes && typst_processor.is_none() {
+        tracing::warn!(
+            "Found .typ files but this build has no project root (embedded source) — \
+             typst compilation requires a filesystem project root, these files will be skipped."
+        );
+    } else if has_typst_routes && !TypstProcessor::is_available() {
         tracing::warn!(
             "Found .typ files but `typst` CLI is not on PATH — \
              these files will be skipped. Install typst: https://typst.app"
         );
     }
 
-    let typst_available = has_typst_routes && TypstProcessor::is_available();
+    // Typst is only "available" if the processor exists (needs project root)
+    // AND the CLI is installed. Previously the processor check was missing,
+    // so EmbedNovel with .typ files would panic at the .expect() below.
+    let typst_available =
+        has_typst_routes && typst_processor.is_some() && TypstProcessor::is_available();
+
+    let read_failures = AtomicUsize::new(0);
+    let process_failures = AtomicUsize::new(0);
 
     // Read all file contents sequentially (I/O bound)
     let route_contents: Vec<_> = routes
@@ -81,6 +95,7 @@ pub(crate) fn build_pages(
                 Ok(content) => Some((route, content)),
                 Err(e) => {
                     tracing::warn!("Failed to read {}: {}", route.relative_path, e);
+                    read_failures.fetch_add(1, Ordering::Relaxed);
                     None
                 }
             }
@@ -89,10 +104,15 @@ pub(crate) fn build_pages(
 
     info!("Processing {} pages in parallel...", route_contents.len());
 
-    // Process all pages in parallel (CPU bound)
+    // Process all pages in parallel (CPU bound). `into_par_iter` consumes
+    // `route_contents` so each `(route, content)` can be moved into the
+    // closure without extra clones (T-PERF-2).
     let mut pages: Vec<PageData> = route_contents
-        .par_iter()
+        .into_par_iter()
         .filter_map(|(route, content)| {
+            // `relative_path` is kept as an owned String so it remains
+            // usable for error reporting after `route` is moved into the
+            // per-branch calls below.
             let relative_path = route.relative_path.clone();
             let is_typst = relative_path.ends_with(".typ");
 
@@ -101,14 +121,15 @@ pub(crate) fn build_pages(
                 typst_processor
                     .as_ref()
                     .expect("typst_processor must exist for .typ files")
-                    .process_file(content, route.clone())
+                    .process_file(&content, route)
             } else {
-                // Markdown processing with plugin transforms
-                let file_path = Path::new(&route.relative_path);
-                let content = plugins
+                // Markdown processing with plugin transforms. `content` is
+                // moved into the fold, eliminating the previous clone.
+                let file_path = Path::new(&relative_path);
+                let transformed = plugins
                     .iter()
-                    .fold(content.clone(), |md, p| p.transform_markdown(md, file_path));
-                md_processor.process_string(&content, Path::new(&relative_path), route.clone())
+                    .fold(content, |md, p| p.transform_markdown(md, file_path));
+                md_processor.process_string(&transformed, file_path, route)
             };
 
             match page_result {
@@ -134,11 +155,25 @@ pub(crate) fn build_pages(
                 }
                 Err(e) => {
                     tracing::warn!("Failed to process {}: {}", relative_path, e);
+                    process_failures.fetch_add(1, Ordering::Relaxed);
                     None
                 }
             }
         })
         .collect();
+
+    let rf = read_failures.load(Ordering::Relaxed);
+    let pf = process_failures.load(Ordering::Relaxed);
+    if rf > 0 || pf > 0 {
+        tracing::warn!(
+            "Built {} page(s); skipped {} (read failure: {}, processing failure: {}). \
+             Run with RUST_LOG=warn to see per-file details.",
+            pages.len(),
+            rf + pf,
+            rf,
+            pf
+        );
+    }
 
     // Sort by route path for deterministic ordering
     pages.sort_by(|a, b| a.route.route_path.cmp(&b.route.route_path));
@@ -343,21 +378,6 @@ fn title_case(s: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-/// Simple HTML tag stripper for plain text extraction.
-fn strip_html_tags(html: &str) -> String {
-    let mut result = String::with_capacity(html.len());
-    let mut in_tag = false;
-    for ch in html.chars() {
-        match ch {
-            '<' => in_tag = true,
-            '>' => in_tag = false,
-            _ if !in_tag => result.push(ch),
-            _ => {}
-        }
-    }
-    result
 }
 
 pub(crate) fn get_git_last_updated(file_path: &Path) -> Option<String> {

@@ -69,12 +69,12 @@ docs/
 
 顶级目录会自动成为导航栏中的导航链接。例如,`guide/` 和 `api/` 两个目录会生成 "Guide" 和 "API" 导航项。
 
-如需自定义导航,参见[配置](/zh/guide/configuration) 指南。
+如需自定义导航,参见[配置](/guide/configuration) 指南。
 
 ## 首页
 
-根目录的 `index.md` 文件在 frontmatter 中设置 `page_type: home` 时会被当作首页。详情见[首页](/zh/guide/home-page)。
+根目录的 `index.md` 文件在 frontmatter 中设置 `page_type: home` 时会被当作首页。详情见[首页](/guide/home-page)。
 
 ## 静态资源
 
-`docs/` 目录下的非 Markdown 文件(图片、PDF 等)会原样复制到输出目录,保持目录结构。详情见[静态资源](/zh/guide/static-assets)。
+`docs/` 目录下的非 Markdown 文件(图片、PDF 等)会原样复制到输出目录,保持目录结构。详情见[静态资源](/guide/static-assets)。

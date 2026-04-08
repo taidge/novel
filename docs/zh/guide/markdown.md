@@ -14,7 +14,7 @@ Novel 支持标准 Markdown,并带有 GitHub Flavored Markdown (GFM) 扩展。
 
 ## 链接
 
-- [内部链接](/zh/guide/getting-started)
+- [内部链接](/guide/getting-started)
 - [外部链接](https://github.com)(自动在新标签页打开)
 
 ## 列表

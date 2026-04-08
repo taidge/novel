@@ -202,6 +202,12 @@ pub struct PageData {
     /// Resolved date (from frontmatter.date or git)
     #[serde(default)]
     pub date: Option<String>,
+    /// Alternate language versions of this page, as `(locale_code, route_path)`
+    /// tuples. Populated by the i18n pipeline when multiple locales share the
+    /// same `relative_path`. Used by `base.html` to emit
+    /// `<link rel="alternate" hreflang="...">` tags.
+    #[serde(default)]
+    pub translations: Vec<(String, String)>,
 }
 
 /// Sidebar item - can be a link, group, or divider

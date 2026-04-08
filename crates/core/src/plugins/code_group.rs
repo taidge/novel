@@ -1,8 +1,17 @@
 use crate::plugin::{ContainerDirective, Plugin};
+use crate::util::html_escape;
 use std::sync::LazyLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 static TITLE_RE: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new(r#"title="([^"]+)""#).unwrap());
+    LazyLock::new(|| regex::Regex::new(r#"title="([^"]+)""#).expect("valid regex"));
+
+/// Monotonic group counter so each rendered `::: code-group` gets a unique
+/// id prefix for its ARIA relationships. Monotonic across the whole
+/// process is fine: the ids only need to be unique within a single page,
+/// and even if two pages happen to use the same id the pages are never
+/// loaded together in the same DOM. (T-UI-7)
+static CODE_GROUP_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// Plugin that provides the `::: code-group` container directive.
 ///
@@ -49,7 +58,7 @@ impl ContainerDirective for CodeGroupDirective {
                     // Try to extract title="..." as label
                     let label = TITLE_RE
                         .captures(info)
-                        .map(|c| c.get(1).unwrap().as_str().to_string())
+                        .map(|c| c.get(1).expect("regex has 1 group").as_str().to_string())
                         .unwrap_or_else(|| {
                             if lang.is_empty() {
                                 "Code".to_string()
@@ -80,40 +89,43 @@ impl ContainerDirective for CodeGroupDirective {
             return format!("<div class=\"code-group\">{}</div>", body);
         }
 
-        let mut html = String::from("<div class=\"code-group\">\n<div class=\"tabs-header\">\n");
+        let group = CODE_GROUP_COUNTER.fetch_add(1, Ordering::Relaxed);
+
+        let mut html =
+            String::from("<div class=\"code-group\">\n<div class=\"tabs-header\" role=\"tablist\">\n");
         for (i, (label, _, _)) in tabs.iter().enumerate() {
-            let active = if i == 0 { " active" } else { "" };
+            let is_active = i == 0;
+            let active_cls = if is_active { " active" } else { "" };
+            let selected = if is_active { "true" } else { "false" };
+            let tabindex = if is_active { "0" } else { "-1" };
             html.push_str(&format!(
-                "<button class=\"tab-btn{}\" data-tab=\"{}\">{}</button>\n",
-                active, i, label
+                "<button class=\"tab-btn{active_cls}\" role=\"tab\" \
+                 id=\"cg-tab-{group}-{i}\" data-tab=\"{i}\" \
+                 aria-selected=\"{selected}\" aria-controls=\"cg-panel-{group}-{i}\" \
+                 tabindex=\"{tabindex}\">{label}</button>\n"
             ));
         }
         html.push_str("</div>\n");
 
         for (i, (_, lang, code)) in tabs.iter().enumerate() {
-            let active = if i == 0 { " active" } else { "" };
+            let is_active = i == 0;
+            let active_cls = if is_active { " active" } else { "" };
+            let hidden_attr = if is_active { "" } else { " hidden" };
             let lang_attr = if lang.is_empty() {
                 String::new()
             } else {
                 format!(" class=\"language-{}\"", lang)
             };
             html.push_str(&format!(
-                "<div class=\"tab-panel{}\" data-tab=\"{}\">\n<pre><code{}>{}</code></pre>\n</div>\n",
-                active,
-                i,
-                lang_attr,
-                html_escape(code.trim_end())
+                "<div class=\"tab-panel{active_cls}\" role=\"tabpanel\" \
+                 id=\"cg-panel-{group}-{i}\" data-tab=\"{i}\" \
+                 aria-labelledby=\"cg-tab-{group}-{i}\"{hidden_attr}>\n\
+                 <pre><code{lang_attr}>{code}</code></pre>\n</div>\n",
+                code = html_escape(code.trim_end())
             ));
         }
 
         html.push_str("</div>");
         html
     }
-}
-
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
 }

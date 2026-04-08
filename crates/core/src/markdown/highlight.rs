@@ -1,3 +1,4 @@
+use crate::util::html_escape;
 use once_cell::sync::Lazy;
 use syntect::highlighting::ThemeSet;
 use syntect::html::highlighted_html_for_string;
@@ -30,9 +31,3 @@ pub fn highlight_code(code: &str, lang: &str, theme_name: &str) -> String {
     }
 }
 
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-}

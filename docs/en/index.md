@@ -6,10 +6,10 @@ hero:
   tagline: A static documentation site generator — run standalone or embed as a library in your own server
   actions:
     - text: Quick Start
-      link: /en/guide/getting-started
+      link: /guide/getting-started
       theme: brand
     - text: Library API
-      link: /en/guide/library
+      link: /guide/library
       theme: alt
 features:
   - title: Blazing Fast

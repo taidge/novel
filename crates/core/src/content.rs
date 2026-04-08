@@ -5,7 +5,7 @@
 //! filterable (drafts/future/expiry), sortable, and can be paginated into a
 //! list page.
 
-use anyhow::Result;
+use crate::error::{NovelError, NovelResult};
 use novel_shared::PageData;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -42,17 +42,21 @@ impl Default for CollectionConfig {
     }
 }
 
-/// Discovered collection metadata.
+/// Discovered collection metadata. Keyed in the owning `HashMap` by the
+/// top-level directory name, which is why the name doesn't live here.
 #[derive(Debug, Clone)]
 pub struct Collection {
-    /// Collection name (top-level directory name)
-    pub name: String,
     pub config: CollectionConfig,
 }
 
 /// Discover collections in the docs root by scanning for `_collection.toml`
 /// files at depth 1.
-pub fn discover_collections(docs_root: &Path) -> Result<HashMap<String, Collection>> {
+///
+/// A malformed `_collection.toml` is now a hard error
+/// ([`NovelError::Data`]) — previously the file was silently replaced
+/// with `CollectionConfig::default()`, which masked typos in user
+/// configs. (F11)
+pub fn discover_collections(docs_root: &Path) -> NovelResult<HashMap<String, Collection>> {
     let mut out = HashMap::new();
     if !docs_root.is_dir() {
         return Ok(out);
@@ -72,8 +76,12 @@ pub fn discover_collections(docs_root: &Path) -> Result<HashMap<String, Collecti
             None => continue,
         };
         let raw = std::fs::read_to_string(&cfg_path)?;
-        let config: CollectionConfig = toml::from_str(&raw).unwrap_or_default();
-        out.insert(name.clone(), Collection { name, config });
+        let config: CollectionConfig =
+            toml::from_str(&raw).map_err(|e| NovelError::Data {
+                file: cfg_path.display().to_string(),
+                message: e.to_string(),
+            })?;
+        out.insert(name, Collection { config });
     }
     Ok(out)
 }

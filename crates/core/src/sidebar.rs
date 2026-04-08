@@ -1,9 +1,8 @@
-use anyhow::Result;
+use crate::error::{NovelError, NovelResult};
+use crate::source::DocsSource;
 use novel_shared::{NavItem, PageData, SidebarItem};
 use serde::Deserialize;
 use std::collections::HashMap;
-
-use crate::source::DocsSource;
 
 /// Metadata entry in _meta.json files
 #[derive(Debug, Clone, Deserialize)]
@@ -27,7 +26,7 @@ pub enum MetaEntry {
 pub fn generate_sidebar(
     source: &dyn DocsSource,
     pages: &[PageData],
-) -> Result<HashMap<String, Vec<SidebarItem>>> {
+) -> NovelResult<HashMap<String, Vec<SidebarItem>>> {
     let mut sidebar_map: HashMap<String, Vec<SidebarItem>> = HashMap::new();
 
     // Group pages by their top-level directory
@@ -46,7 +45,7 @@ pub fn generate_sidebar(
 
         let items = if source.exists(&meta_path) {
             let content = source.read_to_string(&meta_path)?;
-            load_sidebar_from_content(&content, &prefix, dir_page_list)?
+            load_sidebar_from_content(&content, &meta_path, &prefix, dir_page_list)?
         } else {
             auto_generate_sidebar_items(&prefix, dir_page_list)
         };
@@ -60,10 +59,15 @@ pub fn generate_sidebar(
 /// Load sidebar configuration from _meta.json content
 fn load_sidebar_from_content(
     content: &str,
+    file: &str,
     prefix: &str,
     pages: &[&PageData],
-) -> Result<Vec<SidebarItem>> {
-    let entries: Vec<MetaEntry> = serde_json::from_str(content)?;
+) -> NovelResult<Vec<SidebarItem>> {
+    let entries: Vec<MetaEntry> =
+        serde_json::from_str(content).map_err(|e| NovelError::Data {
+            file: file.to_string(),
+            message: e.to_string(),
+        })?;
 
     let mut items = Vec::new();
     for entry in entries {

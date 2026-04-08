@@ -14,3 +14,16 @@ name = "Tags"
 
 [taxonomies.categories]
 name = "Categories"
+
+[i18n]
+default_locale = "en"
+
+[[i18n.locales]]
+code = "en"
+name = "English"
+dir  = "en"
+
+[[i18n.locales]]
+code = "zh"
+name = "简体中文"
+dir  = "zh"

@@ -1,4 +1,3 @@
-use anyhow::Result;
 use novel_shared::RouteMeta;
 use std::path::Path;
 
@@ -23,7 +22,12 @@ fn strip_content_extension(path: &str) -> &str {
 }
 
 /// Scan the docs source and generate route metadata for all content files.
-pub(crate) fn scan_routes(source: &dyn DocsSource) -> Result<Vec<RouteMeta>> {
+///
+/// This function is purely structural — it walks `source.list_files()` and
+/// constructs `RouteMeta` values. Source listing failures are surfaced
+/// upstream by the source impl itself, not here, so the return type is a
+/// plain `Vec` rather than a `Result`. (F8)
+pub(crate) fn scan_routes(source: &dyn DocsSource) -> Vec<RouteMeta> {
     let mut routes = Vec::new();
 
     for file_path in source.list_files() {
@@ -51,7 +55,7 @@ pub(crate) fn scan_routes(source: &dyn DocsSource) -> Result<Vec<RouteMeta>> {
     // Sort routes for deterministic output
     routes.sort_by(|a, b| a.route_path.cmp(&b.route_path));
 
-    Ok(routes)
+    routes
 }
 
 /// Convert a file path to a URL route path

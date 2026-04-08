@@ -1,5 +1,16 @@
 use crate::plugin::ContainerDirective;
 use regex::Regex;
+use std::sync::LazyLock;
+
+// Compile-time regex constants. `open_re` has to stay dynamic because the
+// directive set depends on plugins, but the others are fixed.
+static CLOSE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^:::$").expect("valid regex"));
+static TAB_HEADER_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^==\s+(.+)$").expect("valid regex"));
+static BADGE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\{badge:(tip|info|warning|danger|note)\|([^}]+)\}").expect("valid regex")
+});
 
 /// Container directive types
 #[derive(Debug, Clone, PartialEq)]
@@ -93,8 +104,8 @@ pub fn preprocess_containers(
     let types_pattern = type_names.join("|");
 
     let open_re = Regex::new(&format!(r"^:::\s*({})(.*)$", types_pattern)).expect("valid regex");
-    let close_re = Regex::new(r"^:::$").expect("valid regex");
-    let tab_header_re = Regex::new(r"^==\s+(.+)$").expect("valid regex");
+    let close_re = &*CLOSE_RE;
+    let tab_header_re = &*TAB_HEADER_RE;
 
     let mut output = String::with_capacity(input.len());
     let mut in_container = false;
@@ -112,6 +123,11 @@ pub fn preprocess_containers(
     let mut tab_headers: Vec<String> = Vec::new();
     let mut tab_panels: Vec<String> = Vec::new();
     let mut current_panel = String::new();
+    // Monotonic counter used to give each tabs container in the document a
+    // unique group id, so generated `id="tab-<g>-<i>"` / `aria-controls`
+    // references stay within scope (T-UI-7).
+    let mut tabs_group_counter: usize = 0;
+    let mut current_tabs_group: usize = 0;
 
     for line in input.lines() {
         if !in_container {
@@ -130,6 +146,8 @@ pub fn preprocess_containers(
                             tab_headers.clear();
                             tab_panels.clear();
                             current_panel.clear();
+                            current_tabs_group = tabs_group_counter;
+                            tabs_group_counter += 1;
                             container_type = Some(ct);
                             in_container = true;
                         }
@@ -200,27 +218,12 @@ pub fn preprocess_containers(
                         tab_panels.push(current_panel.clone());
                         current_panel.clear();
                     }
-                    // Build tabs HTML
-                    output
-                        .push_str("<div class=\"tabs-container\">\n<div class=\"tabs-header\">\n");
-                    for (i, header) in tab_headers.iter().enumerate() {
-                        let active = if i == 0 { " active" } else { "" };
-                        output.push_str(&format!(
-                            "<button class=\"tab-btn{}\" data-tab=\"{}\">{}</button>\n",
-                            active, i, header
-                        ));
-                    }
-                    output.push_str("</div>\n");
-                    for (i, panel) in tab_panels.iter().enumerate() {
-                        let active = if i == 0 { " active" } else { "" };
-                        output.push_str(&format!(
-                            "<div class=\"tab-panel{}\" data-tab=\"{}\">\n\n{}\n</div>\n",
-                            active,
-                            i,
-                            panel.trim()
-                        ));
-                    }
-                    output.push_str("</div>\n");
+                    render_tabs_html(
+                        &mut output,
+                        current_tabs_group,
+                        &tab_headers,
+                        &tab_panels,
+                    );
                     tab_headers.clear();
                     tab_panels.clear();
                     in_tab_panel = false;
@@ -276,6 +279,20 @@ pub fn preprocess_containers(
 
     // If container was never closed, close it
     if in_container {
+        // Identify the directive type for the warning
+        let ct_name: String = if let Some(d) = active_custom_directive.as_ref() {
+            d.name().to_string()
+        } else if let Some(ct) = &container_type {
+            ct.css_class().to_string()
+        } else {
+            "container".to_string()
+        };
+        tracing::warn!(
+            "Unclosed `:::{}` directive reached end of input — auto-closed. \
+             Add a `:::` line to silence this warning.",
+            ct_name
+        );
+
         if let Some(directive) = active_custom_directive.take() {
             let rendered = directive.render(&custom_title, &custom_body);
             output.push_str(&rendered);
@@ -286,26 +303,12 @@ pub fn preprocess_containers(
                     if in_tab_panel {
                         tab_panels.push(current_panel.clone());
                     }
-                    output
-                        .push_str("<div class=\"tabs-container\">\n<div class=\"tabs-header\">\n");
-                    for (i, header) in tab_headers.iter().enumerate() {
-                        let active = if i == 0 { " active" } else { "" };
-                        output.push_str(&format!(
-                            "<button class=\"tab-btn{}\" data-tab=\"{}\">{}</button>\n",
-                            active, i, header
-                        ));
-                    }
-                    output.push_str("</div>\n");
-                    for (i, panel) in tab_panels.iter().enumerate() {
-                        let active = if i == 0 { " active" } else { "" };
-                        output.push_str(&format!(
-                            "<div class=\"tab-panel{}\" data-tab=\"{}\">\n\n{}\n</div>\n",
-                            active,
-                            i,
-                            panel.trim()
-                        ));
-                    }
-                    output.push_str("</div>\n");
+                    render_tabs_html(
+                        &mut output,
+                        current_tabs_group,
+                        &tab_headers,
+                        &tab_panels,
+                    );
                 }
                 Some(ContainerType::Steps) => {
                     output.push_str("\n</div>\n");
@@ -322,11 +325,10 @@ pub fn preprocess_containers(
     }
 
     // Process inline badges: {badge:TYPE|TEXT} -> <span class="badge TYPE">TEXT</span>
-    let badge_re =
-        Regex::new(r"\{badge:(tip|info|warning|danger|note)\|([^}]+)\}").expect("valid regex");
-    let result = badge_re.replace_all(&output, |caps: &regex::Captures| {
-        let badge_type = caps.get(1).unwrap().as_str();
-        let badge_text = caps.get(2).unwrap().as_str();
+    let result = BADGE_RE.replace_all(&output, |caps: &regex::Captures| {
+        // Safe: the regex has exactly 2 capture groups.
+        let badge_type = caps.get(1).expect("regex has 2 groups").as_str();
+        let badge_text = caps.get(2).expect("regex has 2 groups").as_str();
         format!(
             "<span class=\"badge badge-{}\">{}</span>",
             badge_type, badge_text
@@ -334,6 +336,41 @@ pub fn preprocess_containers(
     });
 
     result.into_owned()
+}
+
+/// Render a tabs container to HTML with full WAI-ARIA markup.
+///
+/// Each tabs container gets a unique `group` id so `aria-controls` /
+/// `aria-labelledby` references stay unambiguous within a page. The first
+/// tab is pre-selected; every other tab is `hidden` and `tabindex="-1"`,
+/// matching the [Tabs Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/).
+fn render_tabs_html(out: &mut String, group: usize, headers: &[String], panels: &[String]) {
+    out.push_str("<div class=\"tabs-container\">\n<div class=\"tabs-header\" role=\"tablist\">\n");
+    for (i, header) in headers.iter().enumerate() {
+        let is_active = i == 0;
+        let active_cls = if is_active { " active" } else { "" };
+        let selected = if is_active { "true" } else { "false" };
+        let tabindex = if is_active { "0" } else { "-1" };
+        out.push_str(&format!(
+            "<button class=\"tab-btn{active_cls}\" role=\"tab\" \
+             id=\"tab-{group}-{i}\" data-tab=\"{i}\" \
+             aria-selected=\"{selected}\" aria-controls=\"panel-{group}-{i}\" \
+             tabindex=\"{tabindex}\">{header}</button>\n"
+        ));
+    }
+    out.push_str("</div>\n");
+    for (i, panel) in panels.iter().enumerate() {
+        let is_active = i == 0;
+        let active_cls = if is_active { " active" } else { "" };
+        let hidden_attr = if is_active { "" } else { " hidden" };
+        out.push_str(&format!(
+            "<div class=\"tab-panel{active_cls}\" role=\"tabpanel\" \
+             id=\"panel-{group}-{i}\" data-tab=\"{i}\" \
+             aria-labelledby=\"tab-{group}-{i}\"{hidden_attr}>\n\n{body}\n</div>\n",
+            body = panel.trim()
+        ));
+    }
+    out.push_str("</div>\n");
 }
 
 #[cfg(test)]
@@ -373,6 +410,26 @@ mod tests {
         assert!(output.contains("tab-btn"));
         assert!(output.contains("npm"));
         assert!(output.contains("yarn"));
+        // WAI-ARIA tabs pattern — T-UI-7
+        assert!(output.contains(r#"role="tablist""#));
+        assert!(output.contains(r#"role="tab""#));
+        assert!(output.contains(r#"role="tabpanel""#));
+        assert!(output.contains(r#"aria-selected="true""#));
+        assert!(output.contains(r#"aria-selected="false""#));
+        assert!(output.contains(r#"aria-controls="panel-0-0""#));
+        assert!(output.contains(r#"aria-labelledby="tab-0-0""#));
+        // Non-active panel should be hidden
+        assert!(output.contains(" hidden>"));
+    }
+
+    #[test]
+    fn test_tabs_group_ids_are_unique() {
+        // Two separate tabs containers in the same document must get
+        // distinct group numbers so ARIA references don't collide.
+        let input = "::: tabs\n== A\ntext\n:::\n\n::: tabs\n== B\ntext\n:::\n";
+        let output = preprocess_containers(input, &[]);
+        assert!(output.contains(r#"id="tab-0-0""#));
+        assert!(output.contains(r#"id="tab-1-0""#));
     }
 
     #[test]

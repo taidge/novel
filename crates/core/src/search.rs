@@ -1,3 +1,4 @@
+use crate::util::strip_html_tags;
 use novel_shared::{PageData, SearchIndexEntry, SearchSection};
 
 /// Generate search index from all pages with section-level content splitting
@@ -78,20 +79,3 @@ fn extract_sections(html: &str, toc: &[novel_shared::TocItem]) -> Vec<SearchSect
     sections
 }
 
-/// Simple HTML tag stripper
-fn strip_html_tags(html: &str) -> String {
-    let mut result = String::with_capacity(html.len());
-    let mut in_tag = false;
-
-    for ch in html.chars() {
-        match ch {
-            '<' => in_tag = true,
-            '>' => in_tag = false,
-            _ if !in_tag => result.push(ch),
-            _ => {}
-        }
-    }
-
-    // Normalize whitespace
-    result.split_whitespace().collect::<Vec<_>>().join(" ")
-}

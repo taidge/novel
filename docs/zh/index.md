@@ -6,10 +6,10 @@ hero:
   tagline: 一个静态文档站点生成器 — 既可独立运行,也可作为库嵌入到你自己的服务器中
   actions:
     - text: 快速开始
-      link: /zh/guide/getting-started
+      link: /guide/getting-started
       theme: brand
     - text: 库 API
-      link: /zh/guide/library
+      link: /guide/library
       theme: alt
 features:
   - title: 极致性能

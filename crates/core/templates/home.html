@@ -3,7 +3,7 @@
 {% block title %}{{ site.title }} - {{ site.description }}{% endblock %}
 
 {% block content %}
-<div id="main-content" class="home-layout">
+<main id="main-content" class="home-layout">
     {% if page.frontmatter.hero %}
     <section class="hero">
         {% if page.frontmatter.hero.image %}
@@ -49,5 +49,5 @@
         {{ page.content_html|safe }}
     </section>
     {% endif %}
-</div>
+</main>
 {% endblock %}

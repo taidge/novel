@@ -4,12 +4,12 @@ mod minijinja_engine;
 #[cfg(feature = "tera")]
 mod tera_engine;
 
-use anyhow::Result;
 use novel_shared::config::SiteConfig;
 use novel_shared::{NavItem, PageData, SidebarItem, TocItem};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
+use crate::error::{NovelError, NovelResult};
 use crate::pagination::Paginator;
 use crate::plugin::Plugin;
 use crate::{CSS_CONTENT, JS_CONTENT};
@@ -59,8 +59,12 @@ pub struct RenderContext<'a> {
 /// Implement this trait to add support for a new template language.
 /// The renderer receives a template name and a serializable context,
 /// and must return the rendered HTML string.
+///
+/// Implementors should map their engine-specific error types into
+/// [`NovelError::Template`] (a `String` payload) so that callers see a
+/// uniform error surface.
 pub trait TemplateRenderer: Send + Sync {
-    fn render(&self, template_name: &str, ctx: &RenderContext) -> Result<String>;
+    fn render(&self, template_name: &str, ctx: &RenderContext) -> NovelResult<String>;
 }
 
 /// HTML template engine — public API wrapping a pluggable [`TemplateRenderer`].
@@ -83,7 +87,7 @@ impl TemplateEngine {
         project_root: Option<&Path>,
         plugins: &[Box<dyn Plugin>],
         config: &SiteConfig,
-    ) -> Result<Self> {
+    ) -> NovelResult<Self> {
         let renderer: Box<dyn TemplateRenderer> = match config.template_engine.as_str() {
             "minijinja" | "" => Box::new(minijinja_engine::MiniJinjaRenderer::new(
                 project_root,
@@ -107,17 +111,17 @@ impl TemplateEngine {
                     #[cfg(feature = "handlebars")]
                     "handlebars",
                 ];
-                anyhow::bail!(
+                return Err(NovelError::Config(format!(
                     "Unknown template engine '{}'. Supported: {}",
                     other,
                     supported.join(", ")
-                );
+                )));
             }
         };
 
         let (css_filename, js_filename) = if config.asset_fingerprint {
-            let css_hash = format!("{:08x}", crate::simple_hash(CSS_CONTENT.as_bytes()));
-            let js_hash = format!("{:08x}", crate::simple_hash(JS_CONTENT.as_bytes()));
+            let css_hash = format!("{:08x}", crate::util::fnv1a(CSS_CONTENT.as_bytes()));
+            let js_hash = format!("{:08x}", crate::util::fnv1a(JS_CONTENT.as_bytes()));
             (
                 format!("style.{}.css", css_hash),
                 format!("main.{}.js", js_hash),
@@ -209,7 +213,7 @@ impl TemplateEngine {
         paginator: &Paginator,
         config: &SiteConfig,
         nav: &[NavItem],
-    ) -> Result<String> {
+    ) -> NovelResult<String> {
         let mut ctx = self.base_context(config, nav);
         ctx.paginator = Some(paginator);
         ctx.list_title = Some(title);
@@ -223,14 +227,18 @@ impl TemplateEngine {
         terms: &[TermSummary],
         config: &SiteConfig,
         nav: &[NavItem],
-    ) -> Result<String> {
+    ) -> NovelResult<String> {
         let mut ctx = self.base_context(config, nav);
         ctx.terms = Some(terms);
         ctx.list_title = Some(title);
         self.renderer.render("terms.html", &ctx)
     }
 
-    // -- public render methods (unchanged API) ------------------------------
+    // -- public render methods ----------------------------------------------
+    //
+    // These return [`NovelResult`] internally; the public `BuiltSite` API
+    // converts back to `anyhow::Result` at the boundary via `?` (anyhow's
+    // blanket `From<E: std::error::Error>` impl).
 
     pub fn render_doc(
         &self,
@@ -238,7 +246,7 @@ impl TemplateEngine {
         config: &SiteConfig,
         nav: &[NavItem],
         sidebar: &[SidebarItem],
-    ) -> Result<String> {
+    ) -> NovelResult<String> {
         let edit_url = config.theme.edit_link.as_ref().map(|pattern| {
             format!(
                 "{}{}",
@@ -260,7 +268,7 @@ impl TemplateEngine {
         page: &PageData,
         config: &SiteConfig,
         nav: &[NavItem],
-    ) -> Result<String> {
+    ) -> NovelResult<String> {
         let mut ctx = self.base_context(config, nav);
         ctx.page = Some(page);
         self.renderer.render("home.html", &ctx)
@@ -271,7 +279,7 @@ impl TemplateEngine {
         page: &PageData,
         config: &SiteConfig,
         nav: &[NavItem],
-    ) -> Result<String> {
+    ) -> NovelResult<String> {
         let mut ctx = self.base_context(config, nav);
         ctx.page = Some(page);
         self.renderer.render("page.html", &ctx)
@@ -282,13 +290,13 @@ impl TemplateEngine {
         page: &PageData,
         config: &SiteConfig,
         nav: &[NavItem],
-    ) -> Result<String> {
+    ) -> NovelResult<String> {
         let mut ctx = self.base_context(config, nav);
         ctx.page = Some(page);
         self.renderer.render("blog.html", &ctx)
     }
 
-    pub fn render_404(&self, config: &SiteConfig, nav: &[NavItem]) -> Result<String> {
+    pub fn render_404(&self, config: &SiteConfig, nav: &[NavItem]) -> NovelResult<String> {
         let ctx = self.base_context(config, nav);
         self.renderer.render("404.html", &ctx)
     }

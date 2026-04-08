@@ -92,4 +92,4 @@ dismissible = true
 
 ## 作为库使用
 
-Novel 也可以嵌入到你自己的 Rust 应用中 —— 参见[库 API](/zh/guide/library) 指南。
+Novel 也可以嵌入到你自己的 Rust 应用中 —— 参见[库 API](/guide/library) 指南。

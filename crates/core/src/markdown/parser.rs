@@ -3,13 +3,24 @@ use gray_matter::Matter;
 use gray_matter::engine::YAML;
 use novel_shared::{FrontMatter, PageData, RouteMeta, TocItem};
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag, TagEnd, html};
+use regex::Regex;
 use slug::slugify;
 use std::path::Path;
+use std::sync::LazyLock;
 
 use super::container::preprocess_containers;
 use super::file_embed::{parse_file_embed, read_embedded_file};
 use super::highlight::highlight_code;
 use crate::plugin::ContainerDirective;
+use crate::util::html_escape;
+
+// Compile-time regex constants — built once per process, not per code fence.
+static HIGHLIGHTED_LINES_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\{([0-9,\-\s]+)\}").expect("valid regex"));
+static CODE_TITLE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"title="([^"]+)""#).expect("valid regex"));
+static INTERNAL_LINK_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"href="(/[^"]*?)""#).expect("valid regex"));
 
 /// Main markdown processing engine
 pub struct MarkdownProcessor {
@@ -330,6 +341,7 @@ impl MarkdownProcessor {
             summary_html,
             collection: None,
             date,
+            translations: Vec::new(),
         })
     }
 }
@@ -428,18 +440,11 @@ fn build_code_block_html(
 /// Parse highlighted line numbers from code fence info string
 /// Supports: {1,3-5,8} or {1, 3-5, 8}
 fn parse_highlighted_lines(info: &str) -> Vec<usize> {
-    let re = regex::Regex::new(r"\{([0-9,\-\s]+)\}").ok();
-    let re = match re {
-        Some(r) => r,
-        None => return Vec::new(),
+    let Some(caps) = HIGHLIGHTED_LINES_RE.captures(info) else {
+        return Vec::new();
     };
-
-    let caps = match re.captures(info) {
-        Some(c) => c,
-        None => return Vec::new(),
-    };
-
-    let spec = caps.get(1).unwrap().as_str();
+    // Safe: the regex has exactly one capture group.
+    let spec = caps.get(1).expect("regex has 1 group").as_str();
     let mut lines = Vec::new();
 
     for part in spec.split(',') {
@@ -461,13 +466,6 @@ fn parse_highlighted_lines(info: &str) -> Vec<usize> {
     lines
 }
 
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-}
-
 /// Minimal markdown -> HTML for summaries (no plugins / highlight).
 fn render_simple_markdown(md: &str) -> String {
     let parser = Parser::new_ext(md, Options::ENABLE_GFM | Options::ENABLE_TABLES);
@@ -485,15 +483,15 @@ fn render_events_to_html(events: &[Event]) -> String {
 
 /// Parse title="..." from code fence info string
 fn parse_code_title(info: &str) -> Option<String> {
-    let re = regex::Regex::new(r#"title="([^"]+)""#).ok()?;
-    re.captures(info)
-        .map(|c| c.get(1).unwrap().as_str().to_string())
+    CODE_TITLE_RE
+        .captures(info)
+        .map(|c| c.get(1).expect("regex has 1 group").as_str().to_string())
 }
 
 /// Collect all internal links from content HTML for dead link checking
 pub fn collect_internal_links(html: &str) -> Vec<String> {
-    let re = regex::Regex::new(r#"href="(/[^"]*?)""#).unwrap();
-    re.captures_iter(html)
+    INTERNAL_LINK_RE
+        .captures_iter(html)
         .filter_map(|caps| {
             let link = caps.get(1)?.as_str().to_string();
             // Skip anchor-only links

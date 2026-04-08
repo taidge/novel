@@ -62,7 +62,7 @@ outline: false    # 该页隐藏目录大纲
 
 ## Hero 与 Features
 
-仅在 `page_type: home` 时使用。完整说明见[首页](/zh/guide/home-page)。
+仅在 `page_type: home` 时使用。完整说明见[首页](/guide/home-page)。
 
 ```yaml
 ---

@@ -92,4 +92,4 @@ Most fields have sensible defaults. You only need to configure what you want to 
 
 ## Using as a Library
 
-Novel can also be embedded into your own Rust application — see the [Library API](/en/guide/library) guide.
+Novel can also be embedded into your own Rust application — see the [Library API](/guide/library) guide.

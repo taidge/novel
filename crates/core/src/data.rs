@@ -2,7 +2,7 @@
 //! JSON value keyed by file stem (and subdirectory). Made available to
 //! templates via `site_data` in the render context.
 
-use anyhow::Result;
+use crate::error::{NovelError, NovelResult};
 use serde_json::{Map, Value};
 use std::path::Path;
 use walkdir::WalkDir;
@@ -11,7 +11,7 @@ use walkdir::WalkDir;
 /// where keys are file stems (subdirectories nest deeper).
 ///
 /// Missing `data/` directory is not an error — returns an empty object.
-pub fn load_data(docs_root: &Path) -> Result<Value> {
+pub fn load_data(docs_root: &Path) -> NovelResult<Value> {
     let data_dir = docs_root.join("data");
     if !data_dir.is_dir() {
         return Ok(Value::Object(Map::new()));
@@ -27,12 +27,21 @@ pub fn load_data(docs_root: &Path) -> Result<Value> {
         let value: Value = match ext {
             "toml" => {
                 let s = std::fs::read_to_string(path)?;
-                let v: toml::Value = toml::from_str(&s)?;
-                serde_json::to_value(v)?
+                let v: toml::Value = toml::from_str(&s).map_err(|e| NovelError::Data {
+                    file: path.display().to_string(),
+                    message: e.to_string(),
+                })?;
+                serde_json::to_value(v).map_err(|e| NovelError::Data {
+                    file: path.display().to_string(),
+                    message: e.to_string(),
+                })?
             }
             "json" => {
                 let s = std::fs::read_to_string(path)?;
-                serde_json::from_str(&s)?
+                serde_json::from_str(&s).map_err(|e| NovelError::Data {
+                    file: path.display().to_string(),
+                    message: e.to_string(),
+                })?
             }
             _ => continue,
         };

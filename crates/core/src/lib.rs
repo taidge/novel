@@ -1,22 +1,31 @@
+// Public extension surface — things external crates reasonably want to
+// import to build plugins, custom templates, or serve pages.
 pub mod assets;
-pub mod builder;
-pub mod cache;
-pub mod content;
 pub mod data;
 pub mod error;
 pub mod markdown;
-pub mod pagination;
 pub mod plugin;
 pub mod plugins;
-pub mod routing;
-pub mod search;
 #[cfg(feature = "salvo")]
 pub mod serve;
-pub mod sidebar;
-pub mod source;
-pub mod taxonomy;
 pub mod template;
-pub mod typst_processor;
+
+// Internal implementation details — the public API is [`Novel`], [`DirNovel`],
+// [`EmbedNovel`], [`BuiltSite`] and anything re-exported from the modules
+// above. Downstream crates should not reach into these modules directly.
+pub(crate) mod build_summary;
+pub(crate) mod builder;
+pub(crate) mod content;
+pub(crate) mod fs_retry;
+pub(crate) mod pagination;
+pub(crate) mod post_process;
+pub(crate) mod routing;
+pub(crate) mod search;
+pub(crate) mod sidebar;
+pub(crate) mod source;
+pub(crate) mod taxonomy;
+pub(crate) mod typst_processor;
+pub(crate) mod util;
 
 use anyhow::Result;
 use novel_shared::config::SiteConfig;
@@ -29,11 +38,11 @@ use std::path::{Path, PathBuf};
 use tracing::info;
 
 use builder::{build_pages, get_git_last_updated, route_to_file_path};
-use content::Collection;
-use pagination::{PageRef, Paginator};
+use fs_retry::clean_dir_contents;
+use post_process::{ListPage, TermsPage, post_process_general};
 use search::generate_search_index;
 use source::{DirSource, DocsSource, EmbedSource};
-use template::{TemplateEngine, TermSummary};
+use template::TemplateEngine;
 
 /// Static asset contents
 pub const CSS_CONTENT: &str = include_str!("../assets/style.css");
@@ -223,6 +232,12 @@ impl Novel for DirNovel {
         let mut merged_sidebar = HashMap::new();
 
         if let Some(ref i18n) = self.config.i18n {
+            // Set of every locale code in the site — used by the link
+            // rewriter to know which prefixes are "already locale-scoped"
+            // and should be left alone (rather than double-prefixed).
+            let all_locales: Vec<String> =
+                i18n.locales.iter().map(|l| l.code.clone()).collect();
+
             // i18n multi-locale build
             for locale in &i18n.locales {
                 let locale_docs = docs_root.join(&locale.dir);
@@ -303,6 +318,38 @@ impl Novel for DirNovel {
                             crumb.link = format!("{}{}", prefix, crumb.link);
                         }
                     }
+
+                    // Rewrite internal links inside content_html, summary_html
+                    // and hero/feature action links so authors don't have to
+                    // hard-code `/en/...` / `/zh/...` prefixes in their pages.
+                    // (T-UI-4.4 / F2)
+                    page.content_html = rewrite_locale_links_in_html(
+                        &page.content_html,
+                        &locale.code,
+                        &all_locales,
+                    );
+                    if let Some(ref mut summary) = page.summary_html {
+                        *summary =
+                            rewrite_locale_links_in_html(summary, &locale.code, &all_locales);
+                    }
+                    if let Some(ref mut hero) = page.frontmatter.hero
+                        && let Some(ref mut actions) = hero.actions
+                    {
+                        for action in actions {
+                            action.link = prefix_internal_path(
+                                &action.link,
+                                &locale.code,
+                                &all_locales,
+                            );
+                        }
+                    }
+                    if let Some(ref mut features) = page.frontmatter.features {
+                        for feature in features {
+                            if let Some(ref mut link) = feature.link {
+                                *link = prefix_internal_path(link, &locale.code, &all_locales);
+                            }
+                        }
+                    }
                 }
 
                 // Git timestamps
@@ -357,10 +404,19 @@ impl Novel for DirNovel {
         let plugins = std::mem::take(&mut self.plugins);
 
         // General-SSG post-processing: discover collections, filter, build
-        // list/term pages.
-        let collections = content::discover_collections(&docs_root).unwrap_or_default();
-        let (all_pages, list_pages, terms_pages) =
+        // list/term pages. A malformed `_collection.toml` is now a hard
+        // error (was silently replaced with defaults pre-F11).
+        let collections = content::discover_collections(&docs_root)?;
+        let (mut all_pages, list_pages, terms_pages) =
             post_process_general(&self.config, all_pages, &collections);
+
+        // Populate the per-page list of alternate-language versions.
+        // Pages are considered translations of each other when they share a
+        // `relative_path` and each has a `route.locale` set. Only runs in
+        // i18n mode. (T-UI-4)
+        populate_translations(&mut all_pages);
+
+        let sidebar_keys = BuiltSite::build_sidebar_index(&all_pages, &merged_sidebar);
 
         Ok(BuiltSite {
             config: self.config.clone(),
@@ -368,6 +424,7 @@ impl Novel for DirNovel {
             pages: all_pages,
             nav: merged_nav,
             sidebar: merged_sidebar,
+            sidebar_keys,
             engine,
             source: Box::new(source),
             plugins,
@@ -502,8 +559,14 @@ impl<E: Embed + Send + Sync + 'static> Novel for EmbedNovel<E> {
         // discovery; collections come up empty so this is a no-op pass that
         // still applies draft/future/expiry filtering.
         let collections = HashMap::new();
-        let (pages, list_pages, terms_pages) =
+        let (mut pages, list_pages, terms_pages) =
             post_process_general(&self.config, br.pages, &collections);
+
+        // Populate translations — no-op unless pages carry a locale, which
+        // EmbedNovel currently never sets. Kept for API symmetry. (T-UI-4)
+        populate_translations(&mut pages);
+
+        let sidebar_keys = BuiltSite::build_sidebar_index(&pages, &br.sidebar);
 
         Ok(BuiltSite {
             config: self.config.clone(),
@@ -511,12 +574,113 @@ impl<E: Embed + Send + Sync + 'static> Novel for EmbedNovel<E> {
             pages,
             nav: br.nav,
             sidebar: br.sidebar,
+            sidebar_keys,
             engine,
             source: Box::new(source),
             plugins,
             list_pages,
             terms_pages,
         })
+    }
+}
+
+/// Decide whether `path` is an internal site path that should get a
+/// locale prefix, and return the rewritten form. Leaves alone:
+///
+/// - external links (`http://`, `https://`, `mailto:`, `tel:`, `//`)
+/// - fragment-only and query-only links (`#foo`, `?x`)
+/// - relative links (anything not starting with `/`)
+/// - paths that already start with `/<known_locale>/` (cross-locale link
+///   or already-prefixed)
+///
+/// Internal paths get `/<current_locale>` prepended. Path `"/"` becomes
+/// `"/<current_locale>/"`.
+fn prefix_internal_path(path: &str, current_locale: &str, all_locales: &[String]) -> String {
+    // External / non-path
+    if path.is_empty()
+        || path.starts_with("http://")
+        || path.starts_with("https://")
+        || path.starts_with("//")
+        || path.starts_with("mailto:")
+        || path.starts_with("tel:")
+        || path.starts_with('#')
+        || path.starts_with('?')
+    {
+        return path.to_string();
+    }
+    // Relative — leave alone (resolved by the browser against the page URL)
+    if !path.starts_with('/') {
+        return path.to_string();
+    }
+    // Already has a known locale prefix? leave alone.
+    for code in all_locales {
+        let p1 = format!("/{}/", code);
+        let p2 = format!("/{}", code);
+        if path == p2 || path.starts_with(&p1) {
+            return path.to_string();
+        }
+    }
+    // Plain absolute internal path: prefix.
+    if path == "/" {
+        format!("/{}/", current_locale)
+    } else {
+        format!("/{}{}", current_locale, path)
+    }
+}
+
+/// Rewrite every `href="/..."` and `src="/..."` inside an HTML string,
+/// applying [`prefix_internal_path`] to each. Used to retrofit i18n
+/// locale prefixes onto pre-rendered Markdown content so authors don't
+/// need to hard-code `/en/...` / `/zh/...` in their pages.
+fn rewrite_locale_links_in_html(html: &str, current_locale: &str, all_locales: &[String]) -> String {
+    use std::sync::LazyLock;
+    static HREF_OR_SRC_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r#"(href|src)="(/[^"]*)""#).expect("valid regex")
+    });
+    HREF_OR_SRC_RE
+        .replace_all(html, |caps: &regex::Captures| {
+            let attr = caps.get(1).expect("group 1").as_str();
+            let path = caps.get(2).expect("group 2").as_str();
+            let new_path = prefix_internal_path(path, current_locale, all_locales);
+            format!(r#"{}="{}""#, attr, new_path)
+        })
+        .into_owned()
+}
+
+/// Build a `relative_path -> [(locale, route_path), ...]` map from all
+/// pages, then copy the matching list onto each page's `translations`
+/// field. Pages without a `locale` (single-locale build) or whose
+/// `relative_path` is empty (virtual pages like taxonomy / archive indices)
+/// are skipped.
+fn populate_translations(pages: &mut [PageData]) {
+    use std::collections::BTreeMap;
+    let mut groups: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+    for page in pages.iter() {
+        let Some(locale) = page.route.locale.as_deref() else {
+            continue;
+        };
+        if page.route.relative_path.is_empty() {
+            continue;
+        }
+        groups
+            .entry(page.route.relative_path.clone())
+            .or_default()
+            .push((locale.to_string(), page.route.route_path.clone()));
+    }
+    // Sort each group by locale for stable output.
+    for list in groups.values_mut() {
+        list.sort_by(|a, b| a.0.cmp(&b.0));
+    }
+    for page in pages.iter_mut() {
+        if page.route.relative_path.is_empty() {
+            continue;
+        }
+        if let Some(list) = groups.get(&page.route.relative_path) {
+            // Only emit if there is actually more than one version.
+            if list.len() > 1 {
+                page.translations = list.clone();
+            }
+        }
     }
 }
 
@@ -528,27 +692,17 @@ impl<E: Embed + Send + Sync + 'static> Novel for EmbedNovel<E> {
 ///
 /// Holds all page data, navigation, sidebar, and the template engine so that
 /// pages can be rendered on demand or written to disk.
-/// A virtual list page (collection/term paginated list) generated by the
-/// general-SSG pipeline. Stored alongside content pages on `BuiltSite`.
-struct ListPage {
-    route_path: String,
-    title: String,
-    paginator: Paginator,
-}
-
-/// A taxonomy overview (terms cloud) page (e.g. /tags/).
-struct TermsPage {
-    route_path: String,
-    title: String,
-    terms: Vec<TermSummary>,
-}
-
 pub struct BuiltSite {
     config: SiteConfig,
     project_root: Option<PathBuf>,
     pages: Vec<PageData>,
     nav: Vec<NavItem>,
     sidebar: HashMap<String, Vec<SidebarItem>>,
+    /// Precomputed sidebar group key per page `route_path`. Built once by
+    /// [`BuiltSite::build_sidebar_index`] after `pages` and `sidebar` are
+    /// finalised so [`BuiltSite::render_page`] avoids an O(N·M) linear
+    /// scan over all sidebar keys on every render. (T-PERF-3)
+    sidebar_keys: HashMap<String, String>,
     engine: TemplateEngine,
     source: Box<dyn DocsSource>,
     plugins: Vec<Box<dyn Plugin>>,
@@ -597,27 +751,56 @@ impl BuiltSite {
         let is_home = matches!(page.frontmatter.page_type, Some(PageType::Home));
         let layout = page.frontmatter.layout.as_deref();
 
-        if is_home || layout == Some("home") {
-            self.engine.render_home(page, &self.config, &self.nav)
+        // Each branch returns a NovelResult<String>; `?` converts to anyhow
+        // via the blanket From<E: std::error::Error> impl.
+        let html = if is_home || layout == Some("home") {
+            self.engine.render_home(page, &self.config, &self.nav)?
         } else if layout == Some("page") {
             self.engine
-                .render_page_layout(page, &self.config, &self.nav)
+                .render_page_layout(page, &self.config, &self.nav)?
         } else if layout == Some("blog") {
-            self.engine.render_blog(page, &self.config, &self.nav)
+            self.engine.render_blog(page, &self.config, &self.nav)?
         } else {
-            let sidebar_key = find_sidebar_key(&page.route.route_path, &self.sidebar);
-            let sidebar_items = sidebar_key
-                .and_then(|k| self.sidebar.get(&k))
+            let sidebar_items = self
+                .sidebar_keys
+                .get(&page.route.route_path)
+                .and_then(|k| self.sidebar.get(k))
                 .map(|v| v.as_slice())
                 .unwrap_or(&[]);
             self.engine
-                .render_doc(page, &self.config, &self.nav, sidebar_items)
+                .render_doc(page, &self.config, &self.nav, sidebar_items)?
+        };
+        Ok(html)
+    }
+
+    /// Pre-resolve the longest-prefix-match sidebar key for every page
+    /// once, instead of doing the linear scan per render call.
+    ///
+    /// This is correct as long as the page list and sidebar are frozen at
+    /// the time of the call — which is always the case inside `BuiltSite`.
+    fn build_sidebar_index(
+        pages: &[PageData],
+        sidebar: &HashMap<String, Vec<SidebarItem>>,
+    ) -> HashMap<String, String> {
+        // Pre-sort keys by length descending so the first prefix match wins
+        // (equivalent to the old longest-prefix search).
+        let mut keys: Vec<&String> = sidebar.keys().collect();
+        keys.sort_by_key(|k| std::cmp::Reverse(k.len()));
+        let mut out = HashMap::with_capacity(pages.len());
+        for page in pages {
+            if let Some(k) = keys
+                .iter()
+                .find(|k| page.route.route_path.starts_with(k.as_str()))
+            {
+                out.insert(page.route.route_path.clone(), (*k).clone());
+            }
         }
+        out
     }
 
     /// Render the 404 page.
     pub fn render_404(&self) -> Result<String> {
-        self.engine.render_404(&self.config, &self.nav)
+        Ok(self.engine.render_404(&self.config, &self.nav)?)
     }
 
     // -- static assets ------------------------------------------------------
@@ -671,6 +854,15 @@ impl BuiltSite {
     pub fn write_to(&self, dir: impl AsRef<Path>) -> Result<()> {
         let output_dir = dir.as_ref();
 
+        // Read the previous build's summary BEFORE clearing the output dir,
+        // so we can show what changed at the end. Missing/corrupt is fine
+        // — we just won't have a baseline. (F3)
+        let prev_summary = if output_dir.exists() {
+            build_summary::BuildSummary::read_previous(output_dir)
+        } else {
+            None
+        };
+
         // Ensure the output directory exists and is empty.
         //
         // We deliberately do NOT try to remove `output_dir` itself. On Windows
@@ -691,8 +883,8 @@ impl BuiltSite {
         std::fs::create_dir_all(&assets_dir)?;
 
         let (css_filename, js_filename) = if self.config.asset_fingerprint {
-            let css_hash = &format!("{:08x}", simple_hash(CSS_CONTENT.as_bytes()));
-            let js_hash = &format!("{:08x}", simple_hash(JS_CONTENT.as_bytes()));
+            let css_hash = &format!("{:08x}", util::fnv1a(CSS_CONTENT.as_bytes()));
+            let js_hash = &format!("{:08x}", util::fnv1a(JS_CONTENT.as_bytes()));
             let css_name = format!("style.{}.css", css_hash);
             let js_name = format!("main.{}.js", js_hash);
             (css_name, js_name)
@@ -799,6 +991,18 @@ window.location.replace('/' + (match || '{}') + '/');
         // Static assets from docs source
         self.copy_static_assets(output_dir)?;
 
+        // Build summary: walk dist/, count + size everything, print, persist.
+        // Failures here are non-fatal — the build itself already succeeded.
+        // (F3)
+        let summary = build_summary::BuildSummary::collect(output_dir);
+        let block = summary.render(prev_summary.as_ref());
+        for line in block.lines() {
+            info!("{}", line);
+        }
+        if let Err(e) = summary.write(output_dir) {
+            tracing::debug!("Could not write .novel-build.json: {e}");
+        }
+
         info!("Build complete! Output: {}", output_dir.display());
         Ok(())
     }
@@ -837,397 +1041,60 @@ window.location.replace('/' + (match || '{}') + '/');
     }
 }
 
-// ---------------------------------------------------------------------------
-// helpers
-// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod tests {
+    use super::{prefix_internal_path, rewrite_locale_links_in_html};
 
-/// Post-process pages: assign collection names, filter drafts/future/expiry,
-/// build per-collection paginated list pages and taxonomy term pages.
-fn post_process_general(
-    config: &SiteConfig,
-    pages: Vec<PageData>,
-    collections: &HashMap<String, Collection>,
-) -> (Vec<PageData>, Vec<ListPage>, Vec<TermsPage>) {
-    use slug::slugify;
+    fn locales() -> Vec<String> {
+        vec!["en".to_string(), "zh".to_string()]
+    }
 
-    // 1. Assign collection name and re-route entries with collection layout.
-    let mut pages: Vec<PageData> = pages
-        .into_iter()
-        .map(|mut p| {
-            if let Some(col) = content::collection_for_page(&p.route.relative_path, collections) {
-                p.collection = Some(col.clone());
-                if p.frontmatter.layout.is_none()
-                    && let Some(c) = collections.get(&col)
-                {
-                    p.frontmatter.layout = Some(c.config.layout.clone());
-                }
-            }
-            p
-        })
-        .collect();
+    #[test]
+    fn prefix_internal_leaves_external_alone() {
+        let l = locales();
+        assert_eq!(prefix_internal_path("https://x.com", "en", &l), "https://x.com");
+        assert_eq!(prefix_internal_path("//cdn.x.com/a", "en", &l), "//cdn.x.com/a");
+        assert_eq!(prefix_internal_path("mailto:a@b.c", "en", &l), "mailto:a@b.c");
+        assert_eq!(prefix_internal_path("#anchor", "en", &l), "#anchor");
+        assert_eq!(prefix_internal_path("./rel", "en", &l), "./rel");
+    }
 
-    // 2. Drop drafts / future / expired (and their would-be index pages).
-    let today = content::today_string();
-    pages = content::filter_pages(pages, config.content.drafts, config.content.future, &today);
+    #[test]
+    fn prefix_internal_prefixes_bare_paths() {
+        let l = locales();
+        assert_eq!(prefix_internal_path("/", "en", &l), "/en/");
+        assert_eq!(prefix_internal_path("/guide/foo", "en", &l), "/en/guide/foo");
+        assert_eq!(prefix_internal_path("/guide/foo", "zh", &l), "/zh/guide/foo");
+    }
 
-    // 3. Per-collection: build paginated list pages.
-    let mut list_pages = Vec::new();
-    for (name, coll) in collections {
-        if !coll.config.publish {
-            continue;
-        }
-        // Gather entries for this collection (skip the collection's own index page if any)
-        let mut entries: Vec<&PageData> = pages
-            .iter()
-            .filter(|p| p.collection.as_deref() == Some(name.as_str()))
-            .filter(|p| {
-                // Skip the index page itself (route ends in /<name>/)
-                let r = &p.route.route_path;
-                r.trim_end_matches('/') != format!("/{}", name).trim_end_matches('/')
-            })
-            .collect();
-        content::sort_collection_entries(&mut entries, &coll.config);
+    #[test]
+    fn prefix_internal_leaves_known_locale_paths_alone() {
+        let l = locales();
+        // Building the en site, encountering a /zh/ link → keep as cross-lang
+        assert_eq!(prefix_internal_path("/zh/guide/x", "en", &l), "/zh/guide/x");
+        // Building the en site, encountering a /en/ link → no double-prefix
+        assert_eq!(prefix_internal_path("/en/guide/x", "en", &l), "/en/guide/x");
+        // Bare /en (no trailing slash) is also a known locale prefix
+        assert_eq!(prefix_internal_path("/en", "en", &l), "/en");
+    }
 
-        let items: Vec<PageRef> = entries
-            .iter()
-            .map(|p| PageRef {
-                title: p.title.clone(),
-                link: p.route.route_path.clone(),
-                date: p.date.clone(),
-                summary_html: p.summary_html.clone().or_else(|| {
-                    if !p.description.is_empty() {
-                        Some(format!("<p>{}</p>", html_escape(&p.description)))
-                    } else {
-                        None
-                    }
-                }),
-            })
-            .collect();
-
-        let base_route = format!("/{}/", name);
-        let per = if coll.config.paginate_by == 0 {
-            items.len().max(1)
-        } else {
-            coll.config.paginate_by
-        };
-        let paginators = pagination::paginate(
-            &base_route,
-            items,
-            per,
-            &config.pagination.page_path,
-            config.pagination.first_page_in_root,
+    #[test]
+    fn rewrite_html_handles_href_and_src() {
+        let l = locales();
+        let input = r#"<a href="/guide/x">a</a> <img src="/img.png">"#;
+        let out = rewrite_locale_links_in_html(input, "en", &l);
+        assert_eq!(
+            out,
+            r#"<a href="/en/guide/x">a</a> <img src="/en/img.png">"#
         );
-        let title = coll.config.layout.clone(); // placeholder; replaced below
-        let _ = title;
-        for paginator in paginators {
-            list_pages.push(ListPage {
-                route_path: paginator.route_path.clone(),
-                title: capitalize(name),
-                paginator,
-            });
-        }
     }
 
-    // 3b. Series: group entries by frontmatter.series and emit list pages.
-    {
-        use std::collections::BTreeMap;
-        let mut series_map: BTreeMap<String, Vec<&PageData>> = BTreeMap::new();
-        for p in &pages {
-            if let Some(ref s) = p.frontmatter.series {
-                series_map.entry(s.clone()).or_default().push(p);
-            }
-        }
-        for (series, mut entries) in series_map {
-            // Sort series chronologically (asc by date) so reading order makes sense.
-            entries.sort_by(|a, b| {
-                let ad = a.date.as_deref().unwrap_or("");
-                let bd = b.date.as_deref().unwrap_or("");
-                ad.cmp(bd)
-            });
-            let items: Vec<PageRef> = entries
-                .iter()
-                .map(|p| PageRef {
-                    title: p.title.clone(),
-                    link: p.route.route_path.clone(),
-                    date: p.date.clone(),
-                    summary_html: p.summary_html.clone(),
-                })
-                .collect();
-            let slug = slugify(&series);
-            let base_route = format!("/series/{}/", slug);
-            let paginators = pagination::paginate(
-                &base_route,
-                items,
-                usize::MAX, // single-page series index
-                &config.pagination.page_path,
-                config.pagination.first_page_in_root,
-            );
-            for paginator in paginators {
-                list_pages.push(ListPage {
-                    route_path: paginator.route_path.clone(),
-                    title: format!("Series: {}", series),
-                    paginator,
-                });
-            }
-        }
-    }
-
-    // 3c. Date archives (year + year/month) for pages with `date`.
-    {
-        use std::collections::BTreeMap;
-        let mut by_year: BTreeMap<String, Vec<&PageData>> = BTreeMap::new();
-        let mut by_ym: BTreeMap<String, Vec<&PageData>> = BTreeMap::new();
-        for p in &pages {
-            if let Some(date) = p.date.as_deref() {
-                if date.len() >= 4 {
-                    by_year.entry(date[..4].to_string()).or_default().push(p);
-                }
-                if date.len() >= 7 {
-                    by_ym
-                        .entry(date[..7].replace('-', "/"))
-                        .or_default()
-                        .push(p);
-                }
-            }
-        }
-        for (year, mut entries) in by_year {
-            entries.sort_by(|a, b| {
-                b.date
-                    .as_deref()
-                    .unwrap_or("")
-                    .cmp(a.date.as_deref().unwrap_or(""))
-            });
-            let items: Vec<PageRef> = entries
-                .iter()
-                .map(|p| PageRef {
-                    title: p.title.clone(),
-                    link: p.route.route_path.clone(),
-                    date: p.date.clone(),
-                    summary_html: p.summary_html.clone(),
-                })
-                .collect();
-            let base_route = format!("/archive/{}/", year);
-            let paginators = pagination::paginate(
-                &base_route,
-                items,
-                usize::MAX,
-                &config.pagination.page_path,
-                config.pagination.first_page_in_root,
-            );
-            for paginator in paginators {
-                list_pages.push(ListPage {
-                    route_path: paginator.route_path.clone(),
-                    title: format!("Archive: {}", year),
-                    paginator,
-                });
-            }
-        }
-        for (ym, mut entries) in by_ym {
-            entries.sort_by(|a, b| {
-                b.date
-                    .as_deref()
-                    .unwrap_or("")
-                    .cmp(a.date.as_deref().unwrap_or(""))
-            });
-            let items: Vec<PageRef> = entries
-                .iter()
-                .map(|p| PageRef {
-                    title: p.title.clone(),
-                    link: p.route.route_path.clone(),
-                    date: p.date.clone(),
-                    summary_html: p.summary_html.clone(),
-                })
-                .collect();
-            let base_route = format!("/archive/{}/", ym);
-            let paginators = pagination::paginate(
-                &base_route,
-                items,
-                usize::MAX,
-                &config.pagination.page_path,
-                config.pagination.first_page_in_root,
-            );
-            for paginator in paginators {
-                list_pages.push(ListPage {
-                    route_path: paginator.route_path.clone(),
-                    title: format!("Archive: {}", ym.replace('/', "-")),
-                    paginator,
-                });
-            }
-        }
-    }
-
-    // 4. Taxonomies: build inverted index, term pages, overview pages.
-    let mut terms_pages = Vec::new();
-    let tax_set = taxonomy::build(&pages, &config.taxonomies);
-    for (key, tax_cfg) in &config.taxonomies {
-        let Some(idx) = tax_set.by_key.get(key) else {
-            continue;
-        };
-
-        // Term pages
-        for (term, page_indices) in &idx.terms {
-            let mut entries: Vec<&PageData> = page_indices.iter().map(|i| &pages[*i]).collect();
-            // Sort: date desc by default
-            entries.sort_by(|a, b| {
-                let ad = a.date.as_deref().unwrap_or("");
-                let bd = b.date.as_deref().unwrap_or("");
-                bd.cmp(ad)
-            });
-            let items: Vec<PageRef> = entries
-                .iter()
-                .map(|p| PageRef {
-                    title: p.title.clone(),
-                    link: p.route.route_path.clone(),
-                    date: p.date.clone(),
-                    summary_html: p.summary_html.clone(),
-                })
-                .collect();
-            let base_route = taxonomy::term_route(key, term, tax_cfg);
-            let per = tax_cfg.paginate_by.unwrap_or(items.len().max(1));
-            let paginators = pagination::paginate(
-                &base_route,
-                items,
-                per,
-                &config.pagination.page_path,
-                config.pagination.first_page_in_root,
-            );
-            for paginator in paginators {
-                list_pages.push(ListPage {
-                    route_path: paginator.route_path.clone(),
-                    title: format!("{}: {}", key, term),
-                    paginator,
-                });
-            }
-        }
-
-        // Taxonomy overview page (terms cloud)
-        let mut summaries: Vec<TermSummary> = idx
-            .terms
-            .iter()
-            .map(|(term, ids)| TermSummary {
-                name: term.clone(),
-                slug: slugify(term),
-                link: taxonomy::term_route(key, term, tax_cfg),
-                count: ids.len(),
-            })
-            .collect();
-        summaries.sort_by(|a, b| b.count.cmp(&a.count));
-        terms_pages.push(TermsPage {
-            route_path: taxonomy::taxonomy_route(key),
-            title: capitalize(key),
-            terms: summaries,
-        });
-    }
-
-    (pages, list_pages, terms_pages)
-}
-
-fn capitalize(s: &str) -> String {
-    let mut c = s.chars();
-    match c.next() {
-        Some(first) => first.to_uppercase().collect::<String>() + c.as_str(),
-        None => String::new(),
+    #[test]
+    fn rewrite_html_skips_external_and_anchor() {
+        let l = locales();
+        let input = r##"<a href="https://x.com">x</a> <a href="#top">top</a>"##;
+        let out = rewrite_locale_links_in_html(input, "en", &l);
+        assert_eq!(out, input);
     }
 }
 
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-}
-
-/// Simple non-cryptographic hash for asset fingerprinting (FNV-1a).
-fn simple_hash(data: &[u8]) -> u64 {
-    let mut hash: u64 = 0xcbf29ce484222325;
-    for &byte in data {
-        hash ^= byte as u64;
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
-    hash
-}
-
-/// Remove every entry inside `path` without removing `path` itself.
-///
-/// Why not just `remove_dir_all` the whole output directory? On Windows, any
-/// process holding the top-level directory handle open via
-/// `ReadDirectoryChangesW` (VS Code, other IDEs, search indexers, file
-/// explorers) will make `remove_dir_all` or `rename` fail with `os error 32`
-/// for as long as that watcher lives, because Windows requires exclusive
-/// access to delete or rename a directory. Deleting the *contents* of the
-/// directory does not require ownership of the directory handle, so it works
-/// even under an active watcher — which is the common case during local
-/// development. Semantically this is equivalent: `write_to` re-creates every
-/// expected child afterwards.
-fn clean_dir_contents(path: &Path) -> std::io::Result<()> {
-    for entry in std::fs::read_dir(path)? {
-        let entry = entry?;
-        let child = entry.path();
-        let ft = entry.file_type()?;
-        if ft.is_dir() {
-            remove_dir_all_retry(&child)?;
-        } else {
-            remove_file_retry(&child)?;
-        }
-    }
-    Ok(())
-}
-
-/// Retry wrapper around [`std::fs::remove_dir_all`] for *nested*
-/// subdirectories inside the output dir. Those subdirectories are not the
-/// ones held by a user-level file watcher, but they may still be touched
-/// briefly by antivirus / the Search Indexer during a rebuild, which can
-/// flake `remove_dir_all` with `os error 32`. A short retry loop makes the
-/// operation much more reliable for end users without changing semantics on
-/// success.
-fn remove_dir_all_retry(path: &Path) -> std::io::Result<()> {
-    retry_io(|| std::fs::remove_dir_all(path), path)
-}
-
-/// Retry wrapper around [`std::fs::remove_file`] — same motivation as
-/// [`remove_dir_all_retry`].
-fn remove_file_retry(path: &Path) -> std::io::Result<()> {
-    retry_io(|| std::fs::remove_file(path), path)
-}
-
-fn retry_io<F: FnMut() -> std::io::Result<()>>(mut op: F, path: &Path) -> std::io::Result<()> {
-    // Delays in milliseconds: 0, 25, 50, 100, 200, 400, 800 — ~1.6s total.
-    const DELAYS_MS: &[u64] = &[0, 25, 50, 100, 200, 400, 800];
-
-    let mut last_err = None;
-    for (attempt, delay) in DELAYS_MS.iter().enumerate() {
-        if *delay > 0 {
-            std::thread::sleep(std::time::Duration::from_millis(*delay));
-        }
-        match op() {
-            Ok(()) => return Ok(()),
-            // Already gone — treat as success.
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-            Err(e) => {
-                if attempt + 1 < DELAYS_MS.len() {
-                    tracing::debug!(
-                        "fs op on {} attempt {} failed: {e}; retrying",
-                        path.display(),
-                        attempt + 1
-                    );
-                }
-                last_err = Some(e);
-            }
-        }
-    }
-    Err(last_err.expect("at least one attempt runs"))
-}
-
-fn find_sidebar_key(
-    route_path: &str,
-    sidebar: &HashMap<String, Vec<SidebarItem>>,
-) -> Option<String> {
-    let mut best: Option<String> = None;
-    let mut best_len = 0;
-    for key in sidebar.keys() {
-        if route_path.starts_with(key) && key.len() > best_len {
-            best = Some(key.clone());
-            best_len = key.len();
-        }
-    }
-    best
-}

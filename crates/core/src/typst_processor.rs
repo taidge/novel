@@ -2,9 +2,25 @@ use anyhow::Result;
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
 use novel_shared::{FrontMatter, PageData, RouteMeta, TocItem};
+use regex::Regex;
 use slug::slugify;
 use std::path::Path;
 use std::process::Command;
+use std::sync::LazyLock;
+
+// Compile-time regex constants used by the helpers below. Declared here so
+// they're built exactly once per process instead of once per .typ file.
+static HEADING_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)<(h[1-6])([^>]*)>(.*?)</h[1-6]>").expect("valid regex"));
+static TAG_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"<[^>]+>").expect("valid regex"));
+static ID_ATTR_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"id="([^"]*)""#).expect("valid regex"));
+static TOC_HEADING_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?s)<h([2-4])\s+id="([^"]*)"[^>]*>(.*?)</h[2-4]>"#).expect("valid regex")
+});
+static FIRST_H1_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)<h1[^>]*>(.*?)</h1>").expect("valid regex"));
 
 /// Typst document processor — compiles `.typ` files to HTML via the `typst` CLI.
 pub struct TypstProcessor {
@@ -72,6 +88,7 @@ impl TypstProcessor {
             breadcrumbs: Vec::new(),
             summary_html: None,
             collection: None,
+            translations: Vec::new(),
         })
     }
 }
@@ -226,41 +243,37 @@ fn extract_body_content(html: &str) -> String {
 
 /// Add anchor IDs and `#` links to headings (h1–h6) in the HTML.
 fn add_heading_anchors(html: &str) -> String {
-    let re = regex::Regex::new(r"(?s)<(h[1-6])([^>]*)>(.*?)</h[1-6]>").unwrap();
-    let tag_re = regex::Regex::new(r"<[^>]+>").unwrap();
-    let id_re = regex::Regex::new(r#"id="([^"]*)""#).unwrap();
+    HEADING_RE
+        .replace_all(html, |caps: &regex::Captures| {
+            let tag = &caps[1];
+            let attrs = &caps[2];
+            let inner = &caps[3];
 
-    re.replace_all(html, |caps: &regex::Captures| {
-        let tag = &caps[1];
-        let attrs = &caps[2];
-        let inner = &caps[3];
+            // Reuse existing id if present, otherwise generate from text
+            let id = ID_ATTR_RE
+                .captures(attrs)
+                .map(|c| c[1].to_string())
+                .unwrap_or_else(|| {
+                    let text = TAG_RE.replace_all(inner, "");
+                    slugify(text.trim())
+                });
 
-        // Reuse existing id if present, otherwise generate from text
-        let id = id_re
-            .captures(attrs)
-            .map(|c| c[1].to_string())
-            .unwrap_or_else(|| {
-                let text = tag_re.replace_all(inner, "");
-                slugify(text.trim())
-            });
-
-        format!(
-            "<{tag} id=\"{id}\">{inner} <a class=\"header-anchor\" href=\"#{id}\">#</a></{tag}>"
-        )
-    })
-    .to_string()
+            format!(
+                "<{tag} id=\"{id}\">{inner} <a class=\"header-anchor\" href=\"#{id}\">#</a></{tag}>"
+            )
+        })
+        .to_string()
 }
 
 /// Extract a table-of-contents from h2–h4 headings in the HTML.
 fn extract_toc(html: &str) -> Vec<TocItem> {
-    let re = regex::Regex::new(r#"(?s)<h([2-4])\s+id="([^"]*)"[^>]*>(.*?)</h[2-4]>"#).unwrap();
-    let tag_re = regex::Regex::new(r"<[^>]+>").unwrap();
-
-    re.captures_iter(html)
+    TOC_HEADING_RE
+        .captures_iter(html)
         .map(|caps| {
-            let depth: u32 = caps[1].parse().unwrap();
+            // Safe: the [2-4] character class in the regex guarantees a single digit.
+            let depth: u32 = caps[1].parse().expect("regex guarantees digit");
             let id = caps[2].to_string();
-            let text = tag_re.replace_all(&caps[3], "").trim().to_string();
+            let text = TAG_RE.replace_all(&caps[3], "").trim().to_string();
             TocItem { id, text, depth }
         })
         .collect()
@@ -268,10 +281,9 @@ fn extract_toc(html: &str) -> Vec<TocItem> {
 
 /// Extract the text of the first `<h1>` in the HTML, if any.
 fn extract_first_h1(html: &str) -> Option<String> {
-    let re = regex::Regex::new(r"(?s)<h1[^>]*>(.*?)</h1>").ok()?;
-    let tag_re = regex::Regex::new(r"<[^>]+>").ok()?;
-    re.captures(html)
-        .map(|caps| tag_re.replace_all(&caps[1], "").trim().to_string())
+    FIRST_H1_RE
+        .captures(html)
+        .map(|caps| TAG_RE.replace_all(&caps[1], "").trim().to_string())
 }
 
 // ---------------------------------------------------------------------------

@@ -69,12 +69,12 @@ You can also use object entries for custom labels and grouping:
 
 Top-level directories automatically become navigation links in the navbar. For example, a `guide/` and `api/` directory produce "Guide" and "API" nav links.
 
-To customise navigation, see the [Configuration](/en/guide/configuration) guide.
+To customise navigation, see the [Configuration](/guide/configuration) guide.
 
 ## Home Page
 
-The root `index.md` file is treated as the home page when it has `page_type: home` in its frontmatter. See [Home Page](/en/guide/home-page) for details.
+The root `index.md` file is treated as the home page when it has `page_type: home` in its frontmatter. See [Home Page](/guide/home-page) for details.
 
 ## Static Assets
 
-Non-markdown files (images, PDFs, etc.) in the `docs/` directory are copied to the output as-is, preserving their directory structure. See [Static Assets](/en/guide/static-assets) for more.
+Non-markdown files (images, PDFs, etc.) in the `docs/` directory are copied to the output as-is, preserving their directory structure. See [Static Assets](/guide/static-assets) for more.

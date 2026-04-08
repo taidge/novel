@@ -1,4 +1,4 @@
-use anyhow::Result;
+use crate::error::NovelResult;
 use rust_embed::Embed;
 use std::marker::PhantomData;
 use std::path::PathBuf;
@@ -8,15 +8,20 @@ use walkdir::WalkDir;
 ///
 /// Implementations provide access to documentation files regardless of
 /// whether they live on the filesystem or are embedded via `rust-embed`.
+///
+/// All fallible methods return [`NovelResult`] so callers get a uniform
+/// structured-error surface (F8). Filesystem failures map to
+/// `NovelError::Io`; "not found in embed" is reported as an
+/// `Io { kind = NotFound }` since semantically it's the same condition.
 pub trait DocsSource: Send + Sync {
     /// List all file paths relative to docs root (forward-slash separated).
     fn list_files(&self) -> Vec<String>;
 
     /// Read a file as a UTF-8 string.
-    fn read_to_string(&self, relative_path: &str) -> Result<String>;
+    fn read_to_string(&self, relative_path: &str) -> NovelResult<String>;
 
     /// Read a file as raw bytes.
-    fn read_bytes(&self, relative_path: &str) -> Result<Vec<u8>>;
+    fn read_bytes(&self, relative_path: &str) -> NovelResult<Vec<u8>>;
 
     /// Check whether a file exists.
     fn exists(&self, relative_path: &str) -> bool;
@@ -55,12 +60,13 @@ impl DocsSource for DirSource {
         files
     }
 
-    fn read_to_string(&self, relative_path: &str) -> Result<String> {
+    fn read_to_string(&self, relative_path: &str) -> NovelResult<String> {
         let path = self.docs_root.join(relative_path);
+        // io::Error → NovelError::Io via the #[from] in the enum.
         Ok(std::fs::read_to_string(path)?)
     }
 
-    fn read_bytes(&self, relative_path: &str) -> Result<Vec<u8>> {
+    fn read_bytes(&self, relative_path: &str) -> NovelResult<Vec<u8>> {
         let path = self.docs_root.join(relative_path);
         Ok(std::fs::read(path)?)
     }
@@ -91,15 +97,29 @@ impl<E: Embed + Send + Sync> DocsSource for EmbedSource<E> {
         E::iter().map(|f| f.to_string()).collect()
     }
 
-    fn read_to_string(&self, relative_path: &str) -> Result<String> {
-        let file = E::get(relative_path)
-            .ok_or_else(|| anyhow::anyhow!("File not found in embed: {}", relative_path))?;
-        Ok(String::from_utf8(file.data.to_vec())?)
+    fn read_to_string(&self, relative_path: &str) -> NovelResult<String> {
+        let file = E::get(relative_path).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("File not found in embed: {}", relative_path),
+            )
+        })?;
+        String::from_utf8(file.data.to_vec()).map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("embedded file {} is not valid UTF-8: {}", relative_path, e),
+            )
+            .into()
+        })
     }
 
-    fn read_bytes(&self, relative_path: &str) -> Result<Vec<u8>> {
-        let file = E::get(relative_path)
-            .ok_or_else(|| anyhow::anyhow!("File not found in embed: {}", relative_path))?;
+    fn read_bytes(&self, relative_path: &str) -> NovelResult<Vec<u8>> {
+        let file = E::get(relative_path).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("File not found in embed: {}", relative_path),
+            )
+        })?;
         Ok(file.data.to_vec())
     }
 

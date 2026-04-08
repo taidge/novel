@@ -1,10 +1,10 @@
-use anyhow::Result;
 use minijinja::{Environment, Error as MiniJinjaError, ErrorKind, Value};
 use novel_shared::config::SiteConfig;
 use rust_embed::Embed;
 use std::path::{Component, Path, PathBuf};
 
 use super::{RenderContext, TemplateRenderer};
+use crate::error::{NovelError, NovelResult};
 use crate::plugin::Plugin;
 
 const REQUIRED_TEMPLATES: [&str; 8] = [
@@ -82,7 +82,7 @@ impl MiniJinjaRenderer {
         project_root: Option<&Path>,
         plugins: &[Box<dyn Plugin>],
         config: &SiteConfig,
-    ) -> Result<Self> {
+    ) -> NovelResult<Self> {
         let mut env = Environment::new();
         let template_dir = project_root.map(|p| p.join("templates"));
         let theme_pack_dir: Option<PathBuf> =
@@ -106,7 +106,8 @@ impl MiniJinjaRenderer {
         });
 
         for name in REQUIRED_TEMPLATES {
-            env.get_template(name)?;
+            env.get_template(name)
+                .map_err(|e| NovelError::Template(e.to_string()))?;
         }
 
         // Register built-in template shortcodes (asset_url, image_set).
@@ -159,9 +160,13 @@ impl MiniJinjaRenderer {
 }
 
 impl TemplateRenderer for MiniJinjaRenderer {
-    fn render(&self, template_name: &str, ctx: &RenderContext) -> Result<String> {
-        let tmpl = self.env.get_template(template_name)?;
+    fn render(&self, template_name: &str, ctx: &RenderContext) -> NovelResult<String> {
+        let tmpl = self
+            .env
+            .get_template(template_name)
+            .map_err(|e| NovelError::Template(e.to_string()))?;
         let value = minijinja::Value::from_serialize(ctx);
-        Ok(tmpl.render(value)?)
+        tmpl.render(value)
+            .map_err(|e| NovelError::Template(e.to_string()))
     }
 }
