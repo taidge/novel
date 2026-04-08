@@ -7,7 +7,7 @@ lang = "en"
 
 [theme]
 dark_mode = true
-footer = "Built with Novel | MIT License"
+footer = "Built with Novel | Apache 2.0 License"
 
 [taxonomies.tags]
 name = "Tags"

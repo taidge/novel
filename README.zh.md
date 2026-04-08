@@ -150,4 +150,4 @@ Novel 是一个 Cargo 工作空间，包含三个 crate：
 
 ## 许可证
 
-MIT
+基于 [Apache License 2.0](./LICENSE) 开源。
