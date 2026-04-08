@@ -15,6 +15,9 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
+use novel_core::plugins::{
+    FeedPlugin, RedirectsPlugin, RobotsPlugin, SearchIndexPlugin, SitemapPlugin,
+};
 use novel_core::{DirNovel, Novel};
 
 fn main() -> Result<()> {
@@ -38,6 +41,11 @@ fn main() -> Result<()> {
     // Use the builder API to construct a site. `DirNovel::new` takes the
     // path to the directory containing the `.md` files; additional options
     // are layered on top with fluent setters.
+    //
+    // We register the same default plugins the `novel` CLI ships with. In
+    // particular, `SearchIndexPlugin` emits `assets/search-index.json` —
+    // without it the client-side search box in the generated pages has
+    // nothing to fetch and silently returns no results.
     let site = DirNovel::new(&docs_dir)
         .title("Novel")
         .description("A fast static documentation site generator built with Rust")
@@ -49,6 +57,11 @@ fn main() -> Result<()> {
             t.footer = Some("Built with Novel — library example".into());
             t.last_updated = true;
         })
+        .plugin(SitemapPlugin)
+        .plugin(FeedPlugin)
+        .plugin(SearchIndexPlugin)
+        .plugin(RobotsPlugin)
+        .plugin(RedirectsPlugin)
         .build()?;
 
     // Write the rendered site to disk.
