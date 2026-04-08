@@ -26,6 +26,10 @@ pub fn generate_sitemap_xml(site: &BuiltSiteView) -> Option<String> {
     xml.push_str("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
 
     for page in site.pages {
+        // Respect per-page noindex — exclude from sitemap entirely.
+        if page.frontmatter.noindex {
+            continue;
+        }
         let route = &page.route.route_path;
         let loc = if route == "/" {
             format!("{}/", base_url)

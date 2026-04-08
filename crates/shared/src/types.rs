@@ -55,6 +55,10 @@ pub struct FrontMatter {
     /// Canonical URL override
     #[serde(default)]
     pub canonical: Option<String>,
+    /// Exclude from search engines (emits `<meta name="robots" content="noindex,nofollow">`
+    /// and omits the page from the generated sitemap).
+    #[serde(default)]
+    pub noindex: bool,
     /// Alternative URLs that redirect here
     #[serde(default)]
     pub aliases: Vec<String>,

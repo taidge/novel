@@ -361,8 +361,11 @@ fn strip_html_tags(html: &str) -> String {
 }
 
 pub(crate) fn get_git_last_updated(file_path: &Path) -> Option<String> {
+    // `%ad` = author date; `--date=short` formats it as YYYY-MM-DD.
+    // (The previous `%Y-%m-%d` was a strftime format, not a git placeholder —
+    // git would pass `%Y`, `%m`, `%d` through literally, producing garbage.)
     let output = Command::new("git")
-        .args(["log", "-1", "--format=%Y-%m-%d", "--"])
+        .args(["log", "-1", "--format=%ad", "--date=short", "--"])
         .arg(file_path)
         .output()
         .ok()?;
