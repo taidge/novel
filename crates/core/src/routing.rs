@@ -49,6 +49,7 @@ pub(crate) fn scan_routes(source: &dyn DocsSource) -> Vec<RouteMeta> {
             relative_path: relative,
             page_name,
             locale: None,
+            version: None,
         });
     }
 

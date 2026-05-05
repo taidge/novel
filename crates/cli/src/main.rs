@@ -107,6 +107,9 @@ async fn main() -> Result<()> {
                 .plugin(novel_core::plugins::SitemapPlugin)
                 .plugin(novel_core::plugins::FeedPlugin)
                 .plugin(novel_core::plugins::SearchIndexPlugin)
+                .plugin(novel_core::plugins::LlmsTxtPlugin)
+                .plugin(novel_core::plugins::MarkdownMirrorPlugin)
+                .plugin(novel_core::plugins::PwaPlugin)
                 .plugin(novel_core::plugins::RobotsPlugin)
                 .plugin(novel_core::plugins::RedirectsPlugin)
                 .build()?;

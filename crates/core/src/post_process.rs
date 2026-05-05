@@ -17,9 +17,10 @@
 //!
 //! Extracted from `lib.rs` in T-CODE-1.
 
-use novel_shared::config::SiteConfig;
 use novel_shared::PageData;
+use novel_shared::config::SiteConfig;
 use slug::slugify;
+use std::cmp::Reverse;
 use std::collections::HashMap;
 
 use crate::content::{self, Collection};
@@ -308,7 +309,7 @@ pub(crate) fn post_process_general(
                 count: ids.len(),
             })
             .collect();
-        summaries.sort_by(|a, b| b.count.cmp(&a.count));
+        summaries.sort_by_key(|summary| Reverse(summary.count));
         terms_pages.push(TermsPage {
             route_path: taxonomy::taxonomy_route(key),
             title: capitalize(key),

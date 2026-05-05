@@ -171,6 +171,65 @@ sizes   = [400, 800, 1600]
 quality = 82
 ```
 
+## Versioning
+
+```toml
+[versions]
+current = "next"
+
+[[versions.items]]
+code = "next"
+label = "Next"
+dir = "next"
+
+[[versions.items]]
+code = "v1"
+label = "1.0"
+dir = "v1"
+```
+
+See [Versioning](./versioning) for routing and selector behavior.
+
+## AI and Markdown Mirrors
+
+```toml
+[markdown_mirror]
+enabled = true
+strip_frontmatter = true
+```
+
+`LlmsTxtPlugin` and `MarkdownMirrorPlugin` are enabled by the CLI. See [AI Context Files](./llms).
+
+## Offline / PWA
+
+```toml
+[pwa]
+enabled = false
+name = "My Docs"
+short_name = "Docs"
+theme_color = "#3b82f6"
+background_color = "#ffffff"
+display = "standalone"
+cache_search_index = true
+```
+
+See [Offline / PWA](./offline).
+
+## Page Feedback
+
+```toml
+[feedback]
+enabled = false
+question = "Was this page helpful?"
+positive_text = "Yes"
+negative_text = "No"
+thanks_text = "Thanks for the feedback."
+positive_link = "https://github.com/user/repo/discussions"
+negative_link = "https://github.com/user/repo/issues/new"
+```
+
+See [Page Feedback](./feedback).
+
 ## Custom Templates
 
 Novel checks a `templates/` folder in your project root before falling back to the built-in embedded templates. Override only the files you need; any missing template still uses the default version.

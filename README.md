@@ -13,7 +13,8 @@ Novel turns a folder of Markdown files into a polished documentation website in 
 - **Markdown first** — GFM, syntax highlighting, tabs, steps, badges, and container directives out of the box.
 - **File embedding** — Embed source code from external files with line-range support so docs stay in sync with code.
 - **Beautiful themes** — Dark mode, responsive layout, search, prev/next navigation, and image zoom built in.
-- **SEO ready** — Sitemap, RSS feed, edit links, last-updated timestamps, and custom head tags.
+- **SEO & AI ready** — Sitemap, RSS/JSON feeds, `llms.txt`, edit links, last-updated timestamps, and custom head tags.
+- **Operational docs features** — Versioned docs, per-page Markdown mirrors, optional PWA output, and static page feedback.
 
 ## Installation
 

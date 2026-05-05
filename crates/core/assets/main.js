@@ -430,3 +430,30 @@ document.addEventListener('click', function(e) {
         btn.classList.toggle('visible', window.scrollY > 300);
     }, { passive: true });
 })();
+
+// ========== Page Feedback ==========
+(function() {
+    var widgets = document.querySelectorAll('.page-feedback');
+    if (widgets.length === 0) return;
+
+    widgets.forEach(function(widget) {
+        var key = 'novel-feedback:' + (widget.dataset.feedbackKey || location.pathname);
+        var thanks = widget.querySelector('.page-feedback-thanks');
+        var actions = widget.querySelector('.page-feedback-actions');
+
+        if (localStorage.getItem(key)) {
+            if (actions) actions.hidden = true;
+            if (thanks) thanks.hidden = false;
+        }
+
+        widget.addEventListener('click', function(e) {
+            var btn = e.target.closest('[data-feedback-value]');
+            if (!btn) return;
+            try {
+                localStorage.setItem(key, btn.dataset.feedbackValue || 'sent');
+            } catch (_) {}
+            if (actions) actions.hidden = true;
+            if (thanks) thanks.hidden = false;
+        });
+    });
+})();

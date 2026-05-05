@@ -32,6 +32,7 @@ pub struct RenderContext<'a> {
     pub sidebar: &'a [SidebarItem],
     pub toc: &'a [TocItem],
     pub edit_url: Option<String>,
+    pub markdown_url: Option<String>,
     pub edit_link_text: &'a str,
     pub last_updated_text: &'a str,
     pub theme_css_overrides: Option<String>,
@@ -179,6 +180,7 @@ impl TemplateEngine {
             sidebar: &[],
             toc: &[],
             edit_url: None,
+            markdown_url: None,
             edit_link_text: config
                 .theme
                 .edit_link_text
@@ -260,6 +262,7 @@ impl TemplateEngine {
         ctx.sidebar = sidebar;
         ctx.toc = &page.toc;
         ctx.edit_url = edit_url;
+        ctx.markdown_url = markdown_url(config, page);
         self.renderer.render("doc.html", &ctx)
     }
 
@@ -271,6 +274,7 @@ impl TemplateEngine {
     ) -> NovelResult<String> {
         let mut ctx = self.base_context(config, nav);
         ctx.page = Some(page);
+        ctx.markdown_url = markdown_url(config, page);
         self.renderer.render("home.html", &ctx)
     }
 
@@ -282,6 +286,7 @@ impl TemplateEngine {
     ) -> NovelResult<String> {
         let mut ctx = self.base_context(config, nav);
         ctx.page = Some(page);
+        ctx.markdown_url = markdown_url(config, page);
         self.renderer.render("page.html", &ctx)
     }
 
@@ -293,12 +298,36 @@ impl TemplateEngine {
     ) -> NovelResult<String> {
         let mut ctx = self.base_context(config, nav);
         ctx.page = Some(page);
+        ctx.markdown_url = markdown_url(config, page);
         self.renderer.render("blog.html", &ctx)
     }
 
     pub fn render_404(&self, config: &SiteConfig, nav: &[NavItem]) -> NovelResult<String> {
         let ctx = self.base_context(config, nav);
         self.renderer.render("404.html", &ctx)
+    }
+}
+
+fn markdown_url(config: &SiteConfig, page: &PageData) -> Option<String> {
+    if !config.markdown_mirror.enabled || page.frontmatter.noindex {
+        return None;
+    }
+    let path = if page.route.route_path == "/" {
+        "/index.md".to_string()
+    } else {
+        let trimmed = page.route.route_path.trim_matches('/');
+        if page.route.route_path.ends_with('/') {
+            format!("/{trimmed}/index.md")
+        } else {
+            format!("/{trimmed}.md")
+        }
+    };
+
+    let base = config.base.trim_end_matches('/');
+    if base.is_empty() {
+        Some(path)
+    } else {
+        Some(format!("{}{}", base, path))
     }
 }
 

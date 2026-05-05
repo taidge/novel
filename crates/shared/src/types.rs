@@ -14,6 +14,9 @@ pub struct RouteMeta {
     /// Locale code for i18n (e.g. "en", "zh")
     #[serde(default)]
     pub locale: Option<String>,
+    /// Version code for versioned docs (e.g. "v2", "next")
+    #[serde(default)]
+    pub version: Option<String>,
 }
 
 /// Table of contents entry
@@ -166,6 +169,15 @@ pub struct PageLink {
     pub link: String,
 }
 
+/// Link to the same page in another documentation version.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VersionLink {
+    pub code: String,
+    pub label: String,
+    pub link: String,
+    pub current: bool,
+}
+
 /// Processed page data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageData {
@@ -208,6 +220,9 @@ pub struct PageData {
     /// `<link rel="alternate" hreflang="...">` tags.
     #[serde(default)]
     pub translations: Vec<(String, String)>,
+    /// Alternate documentation versions for the same `relative_path`.
+    #[serde(default)]
+    pub version_links: Vec<VersionLink>,
 }
 
 /// Sidebar item - can be a link, group, or divider

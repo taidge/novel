@@ -28,8 +28,8 @@ pub(crate) mod typst_processor;
 pub(crate) mod util;
 
 use anyhow::Result;
-use novel_shared::config::SiteConfig;
-use novel_shared::{NavItem, PageData, PageType, SidebarItem};
+use novel_shared::config::{I18nConfig, LocaleConfig, SiteConfig, VersionConfig, VersioningConfig};
+use novel_shared::{NavItem, PageData, PageType, SidebarItem, VersionLink};
 use plugin::{BuiltSiteView, Plugin};
 use rust_embed::Embed;
 use std::collections::HashMap;
@@ -231,12 +231,115 @@ impl Novel for DirNovel {
         let mut merged_nav = Vec::new();
         let mut merged_sidebar = HashMap::new();
 
-        if let Some(ref i18n) = self.config.i18n {
+        if let Some(versions) = self
+            .config
+            .versions
+            .as_ref()
+            .filter(|versions| !versions.items.is_empty())
+        {
+            let scoped_prefixes = all_scoped_prefixes(versions, self.config.i18n.as_ref());
+
+            for version in &versions.items {
+                if version.code.trim().is_empty() {
+                    tracing::warn!("Skipping version entry with an empty code");
+                    continue;
+                }
+
+                let version_dir = version_dir(version);
+                let version_docs = docs_root.join(&version_dir);
+                if !version_docs.exists() {
+                    tracing::warn!(
+                        "Version docs directory does not exist: {}",
+                        version_docs.display()
+                    );
+                    continue;
+                }
+
+                let prefix = version_route_prefix(versions, version);
+                if let Some(ref i18n) = self.config.i18n {
+                    for locale in &i18n.locales {
+                        let locale_docs = version_docs.join(&locale.dir);
+                        if !locale_docs.exists() {
+                            tracing::warn!(
+                                "Version locale docs directory does not exist: {}",
+                                locale_docs.display()
+                            );
+                            continue;
+                        }
+
+                        let source = DirSource::new(locale_docs.clone());
+                        let locale_config = config_for_locale(&self.config, locale);
+                        let mut br = build_pages(
+                            &source,
+                            &locale_config,
+                            Some(&self.project_root),
+                            &self.plugins,
+                        )?;
+
+                        let locale_prefix = normalize_route_prefix(&locale.code);
+                        let scoped_prefix = combine_route_prefixes(&prefix, &locale_prefix);
+                        apply_version_scope(
+                            &mut br.pages,
+                            version,
+                            &scoped_prefix,
+                            &scoped_prefixes,
+                        );
+                        for page in &mut br.pages {
+                            page.route.locale = Some(locale.code.clone());
+                        }
+
+                        if self.config.theme.last_updated {
+                            for page in &mut br.pages {
+                                let file_path = locale_docs.join(&page.route.relative_path);
+                                page.last_updated = get_git_last_updated(&file_path);
+                            }
+                        }
+
+                        let version_sidebar = prefix_sidebar_map(br.sidebar, &scoped_prefix);
+                        let version_nav = prefix_nav_items(br.nav, &scoped_prefix);
+
+                        all_pages.extend(br.pages);
+                        if (is_current_version(versions, &version.code)
+                            && locale.code == i18n.default_locale)
+                            || merged_nav.is_empty()
+                        {
+                            merged_nav = version_nav;
+                        }
+                        merged_sidebar.extend(version_sidebar);
+                    }
+                } else {
+                    let source = DirSource::new(version_docs.clone());
+                    let mut br = build_pages(
+                        &source,
+                        &self.config,
+                        Some(&self.project_root),
+                        &self.plugins,
+                    )?;
+
+                    apply_version_scope(&mut br.pages, version, &prefix, &scoped_prefixes);
+
+                    if self.config.theme.last_updated {
+                        for page in &mut br.pages {
+                            let file_path = version_docs.join(&page.route.relative_path);
+                            page.last_updated = get_git_last_updated(&file_path);
+                        }
+                    }
+
+                    let version_sidebar = prefix_sidebar_map(br.sidebar, &prefix);
+                    let version_nav = prefix_nav_items(br.nav, &prefix);
+
+                    all_pages.extend(br.pages);
+                    if is_current_version(versions, &version.code) || merged_nav.is_empty() {
+                        merged_nav = version_nav;
+                    }
+                    merged_sidebar.extend(version_sidebar);
+                }
+            }
+        } else if let Some(ref i18n) = self.config.i18n {
             // Set of every locale code in the site — used by the link
             // rewriter to know which prefixes are "already locale-scoped"
             // and should be left alone (rather than double-prefixed).
-            let all_locales: Vec<String> =
-                i18n.locales.iter().map(|l| l.code.clone()).collect();
+            let all_locales: Vec<String> = i18n.locales.iter().map(|l| l.code.clone()).collect();
 
             // i18n multi-locale build
             for locale in &i18n.locales {
@@ -336,11 +439,8 @@ impl Novel for DirNovel {
                         && let Some(ref mut actions) = hero.actions
                     {
                         for action in actions {
-                            action.link = prefix_internal_path(
-                                &action.link,
-                                &locale.code,
-                                &all_locales,
-                            );
+                            action.link =
+                                prefix_internal_path(&action.link, &locale.code, &all_locales);
                         }
                     }
                     if let Some(ref mut features) = page.frontmatter.features {
@@ -415,6 +515,7 @@ impl Novel for DirNovel {
         // `relative_path` and each has a `route.locale` set. Only runs in
         // i18n mode. (T-UI-4)
         populate_translations(&mut all_pages);
+        populate_version_links(&mut all_pages, self.config.versions.as_ref());
 
         let sidebar_keys = BuiltSite::build_sidebar_index(&all_pages, &merged_sidebar);
 
@@ -632,11 +733,14 @@ fn prefix_internal_path(path: &str, current_locale: &str, all_locales: &[String]
 /// applying [`prefix_internal_path`] to each. Used to retrofit i18n
 /// locale prefixes onto pre-rendered Markdown content so authors don't
 /// need to hard-code `/en/...` / `/zh/...` in their pages.
-fn rewrite_locale_links_in_html(html: &str, current_locale: &str, all_locales: &[String]) -> String {
+fn rewrite_locale_links_in_html(
+    html: &str,
+    current_locale: &str,
+    all_locales: &[String],
+) -> String {
     use std::sync::LazyLock;
-    static HREF_OR_SRC_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
-        regex::Regex::new(r#"(href|src)="(/[^"]*)""#).expect("valid regex")
-    });
+    static HREF_OR_SRC_RE: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r#"(href|src)="(/[^"]*)""#).expect("valid regex"));
     HREF_OR_SRC_RE
         .replace_all(html, |caps: &regex::Captures| {
             let attr = caps.get(1).expect("group 1").as_str();
@@ -645,6 +749,269 @@ fn rewrite_locale_links_in_html(html: &str, current_locale: &str, all_locales: &
             format!(r#"{}="{}""#, attr, new_path)
         })
         .into_owned()
+}
+
+fn version_dir(version: &VersionConfig) -> String {
+    if version.dir.trim().is_empty() {
+        version.code.clone()
+    } else {
+        version.dir.clone()
+    }
+}
+
+fn version_label(version: &VersionConfig) -> String {
+    if version.label.trim().is_empty() {
+        version.code.clone()
+    } else {
+        version.label.clone()
+    }
+}
+
+fn is_current_version(versions: &VersioningConfig, code: &str) -> bool {
+    if versions.current.trim().is_empty() {
+        versions
+            .items
+            .first()
+            .map(|v| v.code == code)
+            .unwrap_or(false)
+    } else {
+        versions.current == code
+    }
+}
+
+fn version_route_prefix(versions: &VersioningConfig, version: &VersionConfig) -> String {
+    if let Some(ref path) = version.path {
+        return normalize_route_prefix(path);
+    }
+    if is_current_version(versions, &version.code) {
+        String::new()
+    } else {
+        normalize_route_prefix(&format!("/{}", version.code.trim_matches('/')))
+    }
+}
+
+fn normalize_route_prefix(prefix: &str) -> String {
+    let trimmed = prefix.trim().trim_matches('/');
+    if trimmed.is_empty() {
+        String::new()
+    } else {
+        format!("/{}", trimmed)
+    }
+}
+
+fn all_version_prefixes(versions: &VersioningConfig) -> Vec<String> {
+    versions
+        .items
+        .iter()
+        .map(|version| version_route_prefix(versions, version))
+        .filter(|prefix| !prefix.is_empty())
+        .collect()
+}
+
+fn all_scoped_prefixes(versions: &VersioningConfig, i18n: Option<&I18nConfig>) -> Vec<String> {
+    let version_prefixes = all_version_prefixes(versions);
+    let Some(i18n) = i18n else {
+        return version_prefixes;
+    };
+
+    versions
+        .items
+        .iter()
+        .flat_map(|version| {
+            let version_prefix = version_route_prefix(versions, version);
+            i18n.locales.iter().map(move |locale| {
+                let locale_prefix = normalize_route_prefix(&locale.code);
+                combine_route_prefixes(&version_prefix, &locale_prefix)
+            })
+        })
+        .filter(|prefix| !prefix.is_empty())
+        .collect()
+}
+
+fn combine_route_prefixes(left: &str, right: &str) -> String {
+    match (left.is_empty(), right.is_empty()) {
+        (true, true) => String::new(),
+        (true, false) => right.to_string(),
+        (false, true) => left.to_string(),
+        (false, false) => format!("{}{}", left.trim_end_matches('/'), right),
+    }
+}
+
+fn config_for_locale(config: &SiteConfig, locale: &LocaleConfig) -> SiteConfig {
+    let mut locale_config = config.clone();
+
+    if let Some(ref title) = locale.title {
+        locale_config.title = title.clone();
+    }
+    if let Some(ref desc) = locale.description {
+        locale_config.description = desc.clone();
+    }
+    if let Some(ref theme_overrides) = locale.theme {
+        if let Some(ref nav) = theme_overrides.nav {
+            locale_config.theme.nav = nav.clone();
+        }
+        if let Some(ref sidebar) = theme_overrides.sidebar {
+            locale_config.theme.sidebar = sidebar.clone();
+        }
+        if let Some(ref footer) = theme_overrides.footer {
+            locale_config.theme.footer = Some(footer.clone());
+        }
+        if let Some(ref text) = theme_overrides.edit_link_text {
+            locale_config.theme.edit_link_text = Some(text.clone());
+        }
+        if let Some(ref text) = theme_overrides.last_updated_text {
+            locale_config.theme.last_updated_text = Some(text.clone());
+        }
+    }
+
+    locale_config
+}
+
+fn prefix_route(prefix: &str, route: &str) -> String {
+    if prefix.is_empty() {
+        return route.to_string();
+    }
+    if route == "/" {
+        format!("{}/", prefix)
+    } else {
+        format!("{}{}", prefix, route)
+    }
+}
+
+fn prefix_nav_items(nav: Vec<NavItem>, prefix: &str) -> Vec<NavItem> {
+    nav.into_iter()
+        .map(|mut item| {
+            item.link = prefix_version_path(&item.link, prefix, &[]);
+            if let Some(ref mut active_match) = item.active_match {
+                *active_match = prefix_version_path(active_match, prefix, &[]);
+            }
+            item
+        })
+        .collect()
+}
+
+fn prefix_sidebar_map(
+    sidebar: HashMap<String, Vec<SidebarItem>>,
+    prefix: &str,
+) -> HashMap<String, Vec<SidebarItem>> {
+    if prefix.is_empty() {
+        return sidebar;
+    }
+    sidebar
+        .into_iter()
+        .map(|(key, items)| {
+            (
+                prefix_route(prefix, &key),
+                prefix_sidebar_items(items, prefix),
+            )
+        })
+        .collect()
+}
+
+fn prefix_sidebar_items(items: Vec<SidebarItem>, prefix: &str) -> Vec<SidebarItem> {
+    items
+        .into_iter()
+        .map(|item| match item {
+            SidebarItem::Link { text, link } => SidebarItem::Link {
+                text,
+                link: prefix_version_path(&link, prefix, &[]),
+            },
+            SidebarItem::Group {
+                text,
+                collapsed,
+                items,
+            } => SidebarItem::Group {
+                text,
+                collapsed,
+                items: prefix_sidebar_items(items, prefix),
+            },
+            SidebarItem::Divider => SidebarItem::Divider,
+        })
+        .collect()
+}
+
+fn apply_version_scope(
+    pages: &mut [PageData],
+    version: &VersionConfig,
+    prefix: &str,
+    known_prefixes: &[String],
+) {
+    for page in pages {
+        page.route.version = Some(version.code.clone());
+        page.route.route_path = prefix_route(prefix, &page.route.route_path);
+
+        if let Some(ref mut prev) = page.prev_page {
+            prev.link = prefix_route(prefix, &prev.link);
+        }
+        if let Some(ref mut next) = page.next_page {
+            next.link = prefix_route(prefix, &next.link);
+        }
+        for crumb in &mut page.breadcrumbs {
+            crumb.link = prefix_route(prefix, &crumb.link);
+        }
+
+        if !prefix.is_empty() {
+            page.content_html =
+                rewrite_version_links_in_html(&page.content_html, prefix, known_prefixes);
+            if let Some(ref mut summary) = page.summary_html {
+                *summary = rewrite_version_links_in_html(summary, prefix, known_prefixes);
+            }
+            if let Some(ref mut hero) = page.frontmatter.hero
+                && let Some(ref mut actions) = hero.actions
+            {
+                for action in actions {
+                    action.link = prefix_version_path(&action.link, prefix, known_prefixes);
+                }
+            }
+            if let Some(ref mut features) = page.frontmatter.features {
+                for feature in features {
+                    if let Some(ref mut link) = feature.link {
+                        *link = prefix_version_path(link, prefix, known_prefixes);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn rewrite_version_links_in_html(html: &str, prefix: &str, known_prefixes: &[String]) -> String {
+    use std::sync::LazyLock;
+    static HREF_OR_SRC_RE: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r#"(href|src)="(/[^"]*)""#).expect("valid regex"));
+    HREF_OR_SRC_RE
+        .replace_all(html, |caps: &regex::Captures| {
+            let attr = caps.get(1).expect("group 1").as_str();
+            let path = caps.get(2).expect("group 2").as_str();
+            let new_path = prefix_version_path(path, prefix, known_prefixes);
+            format!(r#"{}="{}""#, attr, new_path)
+        })
+        .into_owned()
+}
+
+fn prefix_version_path(path: &str, prefix: &str, known_prefixes: &[String]) -> String {
+    if prefix.is_empty()
+        || path.is_empty()
+        || path.starts_with("http://")
+        || path.starts_with("https://")
+        || path.starts_with("//")
+        || path.starts_with("mailto:")
+        || path.starts_with("tel:")
+        || path.starts_with('#')
+        || path.starts_with('?')
+    {
+        return path.to_string();
+    }
+    if !path.starts_with('/') {
+        return path.to_string();
+    }
+    for known in known_prefixes {
+        let exact = known.as_str();
+        let nested = format!("{}/", known.trim_end_matches('/'));
+        if path == exact || path.starts_with(&nested) {
+            return path.to_string();
+        }
+    }
+    prefix_route(prefix, path)
 }
 
 /// Build a `relative_path -> [(locale, route_path), ...]` map from all
@@ -662,8 +1029,13 @@ fn populate_translations(pages: &mut [PageData]) {
         if page.route.relative_path.is_empty() {
             continue;
         }
+        let key = format!(
+            "{}\0{}",
+            page.route.version.as_deref().unwrap_or(""),
+            page.route.relative_path
+        );
         groups
-            .entry(page.route.relative_path.clone())
+            .entry(key)
             .or_default()
             .push((locale.to_string(), page.route.route_path.clone()));
     }
@@ -675,12 +1047,94 @@ fn populate_translations(pages: &mut [PageData]) {
         if page.route.relative_path.is_empty() {
             continue;
         }
-        if let Some(list) = groups.get(&page.route.relative_path) {
+        let key = format!(
+            "{}\0{}",
+            page.route.version.as_deref().unwrap_or(""),
+            page.route.relative_path
+        );
+        if let Some(list) = groups.get(&key) {
             // Only emit if there is actually more than one version.
             if list.len() > 1 {
                 page.translations = list.clone();
             }
         }
+    }
+}
+
+/// Populate links to the same relative path across configured doc versions.
+fn populate_version_links(pages: &mut [PageData], versions: Option<&VersioningConfig>) {
+    use std::collections::BTreeMap;
+
+    let Some(versions) = versions else {
+        return;
+    };
+    if versions.items.is_empty() {
+        return;
+    }
+
+    let labels: HashMap<String, String> = versions
+        .items
+        .iter()
+        .map(|v| (v.code.clone(), version_label(v)))
+        .collect();
+    let order: HashMap<String, usize> = versions
+        .items
+        .iter()
+        .enumerate()
+        .map(|(idx, v)| (v.code.clone(), idx))
+        .collect();
+
+    let mut groups: BTreeMap<String, Vec<VersionLink>> = BTreeMap::new();
+    for page in pages.iter() {
+        let Some(code) = page.route.version.as_deref() else {
+            continue;
+        };
+        if page.route.relative_path.is_empty() {
+            continue;
+        }
+        let key = format!(
+            "{}\0{}",
+            page.route.locale.as_deref().unwrap_or(""),
+            page.route.relative_path
+        );
+        groups.entry(key).or_default().push(VersionLink {
+            code: code.to_string(),
+            label: labels
+                .get(code)
+                .cloned()
+                .unwrap_or_else(|| code.to_string()),
+            link: page.route.route_path.clone(),
+            current: false,
+        });
+    }
+
+    for links in groups.values_mut() {
+        links.sort_by_key(|link| order.get(&link.code).copied().unwrap_or(usize::MAX));
+    }
+
+    for page in pages.iter_mut() {
+        let Some(current_code) = page.route.version.as_deref() else {
+            continue;
+        };
+        let key = format!(
+            "{}\0{}",
+            page.route.locale.as_deref().unwrap_or(""),
+            page.route.relative_path
+        );
+        let Some(links) = groups.get(&key) else {
+            continue;
+        };
+        if links.len() <= 1 {
+            continue;
+        }
+        page.version_links = links
+            .iter()
+            .cloned()
+            .map(|mut link| {
+                link.current = link.code == current_code;
+                link
+            })
+            .collect();
     }
 }
 
@@ -833,6 +1287,18 @@ impl BuiltSite {
     pub fn feed_xml(&self) -> Option<String> {
         let view = self.as_view();
         plugins::feed::generate_feed_xml(&view)
+    }
+
+    /// AI-readable documentation map, suitable for `/llms.txt`.
+    pub fn llms_txt(&self) -> String {
+        let view = self.as_view();
+        plugins::llms_txt::generate_llms_txt(&view)
+    }
+
+    /// Full AI-readable documentation context, suitable for `/llms-full.txt`.
+    pub fn llms_full_txt(&self) -> String {
+        let view = self.as_view();
+        plugins::llms_txt::generate_llms_full_txt(&view)
     }
 
     /// Create a `BuiltSiteView` for plugin consumption.
@@ -1043,7 +1509,10 @@ window.location.replace('/' + (match || '{}') + '/');
 
 #[cfg(test)]
 mod tests {
-    use super::{prefix_internal_path, rewrite_locale_links_in_html};
+    use super::{
+        prefix_internal_path, prefix_version_path, rewrite_locale_links_in_html,
+        version_route_prefix,
+    };
 
     fn locales() -> Vec<String> {
         vec!["en".to_string(), "zh".to_string()]
@@ -1052,9 +1521,18 @@ mod tests {
     #[test]
     fn prefix_internal_leaves_external_alone() {
         let l = locales();
-        assert_eq!(prefix_internal_path("https://x.com", "en", &l), "https://x.com");
-        assert_eq!(prefix_internal_path("//cdn.x.com/a", "en", &l), "//cdn.x.com/a");
-        assert_eq!(prefix_internal_path("mailto:a@b.c", "en", &l), "mailto:a@b.c");
+        assert_eq!(
+            prefix_internal_path("https://x.com", "en", &l),
+            "https://x.com"
+        );
+        assert_eq!(
+            prefix_internal_path("//cdn.x.com/a", "en", &l),
+            "//cdn.x.com/a"
+        );
+        assert_eq!(
+            prefix_internal_path("mailto:a@b.c", "en", &l),
+            "mailto:a@b.c"
+        );
         assert_eq!(prefix_internal_path("#anchor", "en", &l), "#anchor");
         assert_eq!(prefix_internal_path("./rel", "en", &l), "./rel");
     }
@@ -1063,8 +1541,14 @@ mod tests {
     fn prefix_internal_prefixes_bare_paths() {
         let l = locales();
         assert_eq!(prefix_internal_path("/", "en", &l), "/en/");
-        assert_eq!(prefix_internal_path("/guide/foo", "en", &l), "/en/guide/foo");
-        assert_eq!(prefix_internal_path("/guide/foo", "zh", &l), "/zh/guide/foo");
+        assert_eq!(
+            prefix_internal_path("/guide/foo", "en", &l),
+            "/en/guide/foo"
+        );
+        assert_eq!(
+            prefix_internal_path("/guide/foo", "zh", &l),
+            "/zh/guide/foo"
+        );
     }
 
     #[test]
@@ -1096,5 +1580,46 @@ mod tests {
         let out = rewrite_locale_links_in_html(input, "en", &l);
         assert_eq!(out, input);
     }
-}
 
+    #[test]
+    fn version_prefix_defaults_current_to_unprefixed() {
+        let versions = novel_shared::config::VersioningConfig {
+            current: "v2".to_string(),
+            items: vec![
+                novel_shared::config::VersionConfig {
+                    code: "v2".to_string(),
+                    label: "2.0".to_string(),
+                    dir: "v2".to_string(),
+                    path: None,
+                },
+                novel_shared::config::VersionConfig {
+                    code: "v1".to_string(),
+                    label: "1.0".to_string(),
+                    dir: "v1".to_string(),
+                    path: None,
+                },
+            ],
+        };
+
+        assert_eq!(version_route_prefix(&versions, &versions.items[0]), "");
+        assert_eq!(version_route_prefix(&versions, &versions.items[1]), "/v1");
+    }
+
+    #[test]
+    fn version_link_rewriter_prefixes_bare_internal_paths() {
+        let known = vec!["/v1".to_string(), "/v2".to_string()];
+
+        assert_eq!(
+            prefix_version_path("/guide/intro", "/v1", &known),
+            "/v1/guide/intro"
+        );
+        assert_eq!(
+            prefix_version_path("/v2/guide/intro", "/v1", &known),
+            "/v2/guide/intro"
+        );
+        assert_eq!(
+            prefix_version_path("https://example.com", "/v1", &known),
+            "https://example.com"
+        );
+    }
+}

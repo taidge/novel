@@ -269,6 +269,16 @@ a:hover {
     gap: var(--space-3);
 }
 
+.version-select {
+    height: 32px;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+}
+
 .theme-toggle {
     background: none;
     border: 1px solid var(--border-color);
@@ -551,6 +561,52 @@ a:hover {
 .edit-link:hover { color: var(--accent); text-decoration: none; }
 
 .last-updated {
+    color: var(--text-muted);
+}
+
+.markdown-source-link {
+    white-space: nowrap;
+}
+
+.page-feedback {
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--border-color);
+}
+
+.page-feedback-question {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-3);
+}
+
+.page-feedback-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.feedback-btn {
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-family: inherit;
+    line-height: 1.2;
+}
+
+.feedback-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.page-feedback-thanks {
+    font-size: var(--font-size-sm);
     color: var(--text-muted);
 }
 
@@ -1198,6 +1254,7 @@ img.zoomable {
     .prev-next-link.next { text-align: left; }
 
     .navbar-links { display: none; }
+    .version-select { max-width: 110px; }
 }
 
 /* ========== Print Stylesheet ========== */
@@ -1205,7 +1262,7 @@ img.zoomable {
     .navbar, .sidebar, .toc, .back-to-top, .sidebar-overlay,
     .search-box, .banner, .prev-next, .copy-btn, .header-anchor,
     .theme-toggle, .sidebar-toggle, .doc-progress, .breadcrumbs,
-    .skip-to-content { display: none !important; }
+    .skip-to-content, .page-feedback, .version-select { display: none !important; }
     body { color: #000; background: #fff; font-size: 12pt; }
     .doc-layout { display: block; }
     .doc-content { max-width: 100%; padding: 0; }

@@ -200,6 +200,65 @@ footer = "由 Novel 构建 | Apache 2.0 许可证"
 
 此时每个语言的文档会被读取自 `docs/<dir>/`,输出到 `/<code>/...` 路径下。根路径会生成一个基于 `navigator.language` 的自动跳转页面。
 
+## 文档版本化
+
+```toml
+[versions]
+current = "next"
+
+[[versions.items]]
+code = "next"
+label = "Next"
+dir = "next"
+
+[[versions.items]]
+code = "v1"
+label = "1.0"
+dir = "v1"
+```
+
+路由和版本选择器行为见[文档版本化](./versioning)。
+
+## AI 与 Markdown 镜像
+
+```toml
+[markdown_mirror]
+enabled = true
+strip_frontmatter = true
+```
+
+CLI 默认启用 `LlmsTxtPlugin` 和 `MarkdownMirrorPlugin`。详见 [AI 上下文文件](./llms)。
+
+## 离线 / PWA
+
+```toml
+[pwa]
+enabled = false
+name = "My Docs"
+short_name = "Docs"
+theme_color = "#3b82f6"
+background_color = "#ffffff"
+display = "standalone"
+cache_search_index = true
+```
+
+详见[离线 / PWA](./offline)。
+
+## 页面反馈
+
+```toml
+[feedback]
+enabled = false
+question = "这个页面有帮助吗?"
+positive_text = "有"
+negative_text = "没有"
+thanks_text = "感谢反馈。"
+positive_link = "https://github.com/user/repo/discussions"
+negative_link = "https://github.com/user/repo/issues/new"
+```
+
+详见[页面反馈](./feedback)。
+
 ## 自定义模板
 
 Novel 会优先在项目根目录下的 `templates/` 文件夹中查找模板,然后才回退到内置的默认模板。你只需覆盖那些你想改动的文件;缺失的模板仍会使用默认版本。

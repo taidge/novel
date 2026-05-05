@@ -342,6 +342,7 @@ impl MarkdownProcessor {
             collection: None,
             date,
             translations: Vec::new(),
+            version_links: Vec::new(),
         })
     }
 }

@@ -16,7 +16,8 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use novel_core::plugins::{
-    FeedPlugin, RedirectsPlugin, RobotsPlugin, SearchIndexPlugin, SitemapPlugin,
+    FeedPlugin, LlmsTxtPlugin, MarkdownMirrorPlugin, PwaPlugin, RedirectsPlugin, RobotsPlugin,
+    SearchIndexPlugin, SitemapPlugin,
 };
 use novel_core::{DirNovel, Novel};
 
@@ -44,7 +45,11 @@ fn main() -> Result<()> {
     // We register the same default plugins the `novel` CLI ships with. In
     // particular, `SearchIndexPlugin` emits `assets/search-index.json` —
     // without it the client-side search box in the generated pages has
-    // nothing to fetch and silently returns no results.
+    // nothing to fetch and silently returns no results. `LlmsTxtPlugin`
+    // emits AI-friendly root context files such as `llms.txt`.
+    // `MarkdownMirrorPlugin` writes one `.md` mirror per public page. The PWA
+    // plugin is registered for parity with the CLI but only emits files when
+    // `[pwa].enabled = true`.
     let site = DirNovel::new(&docs_dir)
         .title("Novel")
         .description("A fast static documentation site generator built with Rust")
@@ -59,6 +64,9 @@ fn main() -> Result<()> {
         .plugin(SitemapPlugin)
         .plugin(FeedPlugin)
         .plugin(SearchIndexPlugin)
+        .plugin(LlmsTxtPlugin)
+        .plugin(MarkdownMirrorPlugin)
+        .plugin(PwaPlugin)
         .plugin(RobotsPlugin)
         .plugin(RedirectsPlugin)
         .build()?;

@@ -10,6 +10,9 @@ pub fn run_check(project_root: &Path) -> Result<()> {
         .plugin(novel_core::plugins::SitemapPlugin)
         .plugin(novel_core::plugins::FeedPlugin)
         .plugin(novel_core::plugins::SearchIndexPlugin)
+        .plugin(novel_core::plugins::LlmsTxtPlugin)
+        .plugin(novel_core::plugins::MarkdownMirrorPlugin)
+        .plugin(novel_core::plugins::PwaPlugin)
         .build()?;
 
     let mut errors = 0;

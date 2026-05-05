@@ -12,8 +12,7 @@ use std::sync::LazyLock;
 // they're built exactly once per process instead of once per .typ file.
 static HEADING_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?s)<(h[1-6])([^>]*)>(.*?)</h[1-6]>").expect("valid regex"));
-static TAG_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"<[^>]+>").expect("valid regex"));
+static TAG_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<[^>]+>").expect("valid regex"));
 static ID_ATTR_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"id="([^"]*)""#).expect("valid regex"));
 static TOC_HEADING_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -89,6 +88,7 @@ impl TypstProcessor {
             summary_html: None,
             collection: None,
             translations: Vec::new(),
+            version_links: Vec::new(),
         })
     }
 }

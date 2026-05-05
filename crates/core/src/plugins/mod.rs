@@ -1,5 +1,8 @@
 pub mod code_group;
 pub mod feed;
+pub mod llms_txt;
+pub mod markdown_mirror;
+pub mod pwa;
 pub mod redirects;
 pub mod robots;
 pub mod search_index;
@@ -7,6 +10,9 @@ pub mod sitemap;
 
 pub use code_group::CodeGroupPlugin;
 pub use feed::FeedPlugin;
+pub use llms_txt::LlmsTxtPlugin;
+pub use markdown_mirror::MarkdownMirrorPlugin;
+pub use pwa::PwaPlugin;
 pub use redirects::RedirectsPlugin;
 pub use robots::RobotsPlugin;
 pub use search_index::SearchIndexPlugin;

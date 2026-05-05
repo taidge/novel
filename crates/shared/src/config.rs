@@ -47,6 +47,18 @@ pub struct SiteConfig {
     /// Internationalization configuration
     #[serde(default)]
     pub i18n: Option<I18nConfig>,
+    /// Documentation versioning configuration
+    #[serde(default)]
+    pub versions: Option<VersioningConfig>,
+    /// Per-page Markdown mirror output
+    #[serde(default)]
+    pub markdown_mirror: MarkdownMirrorConfig,
+    /// Progressive Web App / offline support
+    #[serde(default)]
+    pub pwa: PwaConfig,
+    /// Static page feedback widget
+    #[serde(default)]
+    pub feedback: FeedbackConfig,
     /// General content / collection behaviour
     #[serde(default)]
     pub content: ContentConfig,
@@ -162,6 +174,10 @@ impl Default for SiteConfig {
             asset_fingerprint: false,
             template_engine: default_template_engine(),
             i18n: None,
+            versions: None,
+            markdown_mirror: MarkdownMirrorConfig::default(),
+            pwa: PwaConfig::default(),
+            feedback: FeedbackConfig::default(),
             content: ContentConfig::default(),
             taxonomies: HashMap::new(),
             pagination: PaginationConfig::default(),
@@ -327,6 +343,112 @@ pub struct ThemeConfig {
     pub not_found_title: Option<String>,
     /// Custom 404 page message
     pub not_found_message: Option<String>,
+}
+
+/// Documentation versioning configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct VersioningConfig {
+    /// Version code that should keep the canonical, unprefixed routes unless
+    /// that version explicitly sets `path`.
+    pub current: String,
+    /// Version entries, ordered as they should appear in the selector.
+    pub items: Vec<VersionConfig>,
+}
+
+impl Default for VersioningConfig {
+    fn default() -> Self {
+        Self {
+            current: "current".to_string(),
+            items: Vec::new(),
+        }
+    }
+}
+
+/// Single documentation version.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct VersionConfig {
+    /// Stable version code, e.g. "v2" or "next".
+    pub code: String,
+    /// Label shown in the version selector. Defaults to `code`.
+    pub label: String,
+    /// Directory under the docs root containing this version.
+    pub dir: String,
+    /// Optional route prefix. Defaults to no prefix for `current`, otherwise
+    /// `/<code>`.
+    pub path: Option<String>,
+}
+
+/// Per-page Markdown mirror output.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MarkdownMirrorConfig {
+    pub enabled: bool,
+    pub strip_frontmatter: bool,
+}
+
+impl Default for MarkdownMirrorConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            strip_frontmatter: true,
+        }
+    }
+}
+
+/// Progressive Web App / offline support.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PwaConfig {
+    pub enabled: bool,
+    pub name: Option<String>,
+    pub short_name: Option<String>,
+    pub theme_color: String,
+    pub background_color: String,
+    pub display: String,
+    pub cache_search_index: bool,
+}
+
+impl Default for PwaConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            name: None,
+            short_name: None,
+            theme_color: "#3b82f6".to_string(),
+            background_color: "#ffffff".to_string(),
+            display: "standalone".to_string(),
+            cache_search_index: true,
+        }
+    }
+}
+
+/// Static page feedback widget configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FeedbackConfig {
+    pub enabled: bool,
+    pub question: String,
+    pub positive_text: String,
+    pub negative_text: String,
+    pub thanks_text: String,
+    pub positive_link: Option<String>,
+    pub negative_link: Option<String>,
+}
+
+impl Default for FeedbackConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            question: "Was this page helpful?".to_string(),
+            positive_text: "Yes".to_string(),
+            negative_text: "No".to_string(),
+            thanks_text: "Thanks for the feedback.".to_string(),
+            positive_link: None,
+            negative_link: None,
+        }
+    }
 }
 
 /// Internationalization configuration
