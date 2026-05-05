@@ -148,11 +148,53 @@ function toggleSidebar() {
         return union === 0 ? 0 : intersection / union;
     }
 
-    function highlightMatch(text, query) {
-        if (!query) return text;
+    function clearNode(el) {
+        while (el.firstChild) el.removeChild(el.firstChild);
+    }
+
+    function asSearchText(value) {
+        return value == null ? '' : String(value);
+    }
+
+    function appendHighlighted(parent, text, query) {
+        text = asSearchText(text);
+        query = asSearchText(query);
+        if (!query) {
+            parent.appendChild(document.createTextNode(text));
+            return;
+        }
         var idx = text.toLowerCase().indexOf(query.toLowerCase());
-        if (idx < 0) return text;
-        return text.slice(0, idx) + '<mark>' + text.slice(idx, idx + query.length) + '</mark>' + text.slice(idx + query.length);
+        if (idx < 0) {
+            parent.appendChild(document.createTextNode(text));
+            return;
+        }
+        parent.appendChild(document.createTextNode(text.slice(0, idx)));
+        var mark = document.createElement('mark');
+        mark.textContent = text.slice(idx, idx + query.length);
+        parent.appendChild(mark);
+        parent.appendChild(document.createTextNode(text.slice(idx + query.length)));
+    }
+
+    function safeSearchHref(routePath, anchor) {
+        var path = asSearchText(routePath);
+        if (path.charAt(0) !== '/' || path.indexOf('//') === 0 || /[\u0000-\u001f\u007f]/.test(path)) {
+            return '#';
+        }
+        if (anchor) {
+            path += '#' + encodeURIComponent(asSearchText(anchor).replace(/[\u0000-\u001f\u007f#\s]/g, ''));
+        }
+        return path;
+    }
+
+    function resultLink(href, idx) {
+        var link = document.createElement('a');
+        link.href = href;
+        link.className = 'search-result-item';
+        link.dataset.idx = String(idx);
+        link.style.display = 'block';
+        link.style.color = 'inherit';
+        link.style.textDecoration = 'none';
+        return link;
     }
 
     function search(query) {
@@ -206,10 +248,17 @@ function toggleSidebar() {
 
     function renderResults(scored, query) {
         focusedIdx = -1;
+        clearNode(results);
         if (scored.length === 0) {
-            results.innerHTML = '<div class="search-result-item"><div class="search-result-title">No results</div></div>';
+            var empty = document.createElement('div');
+            empty.className = 'search-result-item';
+            var title = document.createElement('div');
+            title.className = 'search-result-title';
+            title.textContent = 'No results';
+            empty.appendChild(title);
+            results.appendChild(empty);
         } else {
-            var html = '';
+            var fragment = document.createDocumentFragment();
             var idx = 0;
             for (var i = 0; i < scored.length; i++) {
                 var item = scored[i].item;
@@ -219,38 +268,57 @@ function toggleSidebar() {
                     // Show section-level results
                     for (var s = 0; s < Math.min(sections.length, 2); s++) {
                         var sec = sections[s].section;
-                        var link = item.route_path + '#' + sec.anchor;
                         var preview = getPreview(sec.content, query);
-                        html += '<a href="' + link + '" class="search-result-item" data-idx="' + idx + '" style="display:block;color:inherit;text-decoration:none">';
-                        html += '<div class="search-result-title">' + highlightMatch(item.title, query) + '</div>';
-                        html += '<div class="search-result-section">' + highlightMatch(sec.heading, query) + '</div>';
-                        if (preview) html += '<div class="search-result-preview">' + preview + '</div>';
-                        html += '</a>';
+                        var sectionLink = resultLink(safeSearchHref(item.route_path, sec.anchor), idx);
+                        var sectionTitle = document.createElement('div');
+                        sectionTitle.className = 'search-result-title';
+                        appendHighlighted(sectionTitle, item.title, query);
+                        sectionLink.appendChild(sectionTitle);
+                        var sectionHeading = document.createElement('div');
+                        sectionHeading.className = 'search-result-section';
+                        appendHighlighted(sectionHeading, sec.heading, query);
+                        sectionLink.appendChild(sectionHeading);
+                        if (preview) {
+                            var sectionPreview = document.createElement('div');
+                            sectionPreview.className = 'search-result-preview';
+                            appendHighlighted(sectionPreview, preview, query);
+                            sectionLink.appendChild(sectionPreview);
+                        }
+                        fragment.appendChild(sectionLink);
                         idx++;
                     }
                 } else {
                     // Page-level result
                     var preview = getPreview(item.content, query);
-                    html += '<a href="' + item.route_path + '" class="search-result-item" data-idx="' + idx + '" style="display:block;color:inherit;text-decoration:none">';
-                    html += '<div class="search-result-title">' + highlightMatch(item.title, query) + '</div>';
-                    if (preview) html += '<div class="search-result-preview">' + preview + '</div>';
-                    html += '</a>';
+                    var pageLink = resultLink(safeSearchHref(item.route_path), idx);
+                    var pageTitle = document.createElement('div');
+                    pageTitle.className = 'search-result-title';
+                    appendHighlighted(pageTitle, item.title, query);
+                    pageLink.appendChild(pageTitle);
+                    if (preview) {
+                        var pagePreview = document.createElement('div');
+                        pagePreview.className = 'search-result-preview';
+                        appendHighlighted(pagePreview, preview, query);
+                        pageLink.appendChild(pagePreview);
+                    }
+                    fragment.appendChild(pageLink);
                     idx++;
                 }
             }
-            results.innerHTML = html;
+            results.appendChild(fragment);
         }
         results.classList.add('active');
     }
 
     function getPreview(content, query) {
+        content = asSearchText(content);
         var q = query.toLowerCase();
         var idx = content.toLowerCase().indexOf(q);
         if (idx < 0) return '';
         var start = Math.max(0, idx - 40);
         var end = Math.min(content.length, idx + 60);
         var preview = (start > 0 ? '...' : '') + content.slice(start, end) + (end < content.length ? '...' : '');
-        return highlightMatch(preview, query);
+        return preview;
     }
 
     function setFocus(idx) {
@@ -271,7 +339,7 @@ function toggleSidebar() {
             var q = input.value.trim();
             if (!q) {
                 results.classList.remove('active');
-                results.innerHTML = '';
+                clearNode(results);
                 return;
             }
             var items = search(q);

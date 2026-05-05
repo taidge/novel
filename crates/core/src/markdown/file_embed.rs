@@ -59,6 +59,9 @@ pub fn read_embedded_file(
     current_file_dir: &Path,
     project_root: &Path,
 ) -> Result<String> {
+    let project_root = project_root
+        .canonicalize()
+        .with_context(|| format!("Failed to resolve project root: {}", project_root.display()))?;
     let resolved = if embed.file_path.starts_with("<root>/") {
         let rel = embed.file_path.trim_start_matches("<root>/");
         project_root.join(rel)
@@ -70,6 +73,13 @@ pub fn read_embedded_file(
         .canonicalize()
         .with_context(|| format!("Failed to resolve embedded file: {}", embed.file_path))?;
 
+    if !resolved.starts_with(&project_root) {
+        anyhow::bail!(
+            "Embedded file is outside project root: {}",
+            resolved.display()
+        );
+    }
+
     let content = std::fs::read_to_string(&resolved)
         .with_context(|| format!("Failed to read embedded file: {}", resolved.display()))?;
 
@@ -77,6 +87,9 @@ pub fn read_embedded_file(
         let lines: Vec<&str> = content.lines().collect();
         let start = start.saturating_sub(1); // convert to 0-indexed
         let end = end.min(lines.len());
+        if start >= end {
+            return Ok(String::new());
+        }
         Ok(lines[start..end].join("\n"))
     } else {
         Ok(content)
@@ -86,6 +99,8 @@ pub fn read_embedded_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn test_parse_file_embed_simple() {
@@ -117,5 +132,48 @@ mod tests {
     fn test_no_file_embed() {
         let result = parse_file_embed("rust title=\"example\"");
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn read_embed_rejects_files_outside_project_root() {
+        let root = temp_dir("novel-embed-root");
+        let outside = temp_dir("novel-embed-outside");
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("secret.txt"), "secret").unwrap();
+
+        let embed = FileEmbed {
+            file_path: outside.join("secret.txt").to_string_lossy().to_string(),
+            line_range: None,
+        };
+        let result = read_embedded_file(&embed, &root.join("docs"), &root);
+
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&outside);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn read_embed_handles_out_of_range_lines_without_panic() {
+        let root = temp_dir("novel-embed-lines");
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::write(root.join("docs").join("example.rs"), "one\ntwo\n").unwrap();
+
+        let embed = FileEmbed {
+            file_path: "./example.rs".to_string(),
+            line_range: Some((10, 20)),
+        };
+        let result = read_embedded_file(&embed, &root.join("docs"), &root).unwrap();
+
+        let _ = fs::remove_dir_all(&root);
+        assert!(result.is_empty());
+    }
+
+    fn temp_dir(prefix: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("{}-{}-{}", prefix, std::process::id(), nanos))
     }
 }

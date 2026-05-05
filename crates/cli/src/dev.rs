@@ -106,7 +106,7 @@ fn build_site(project_root: &Path) -> Result<novel_core::BuiltSite> {
 }
 
 /// Run the development server with file watching and live reload
-pub async fn run_dev_server(project_root: &Path, port: u16) -> Result<()> {
+pub async fn run_dev_server(project_root: &Path, host: &str, port: u16) -> Result<()> {
     let project_root = project_root.to_path_buf();
 
     // Initial build
@@ -203,9 +203,9 @@ pub async fn run_dev_server(project_root: &Path, port: u16) -> Result<()> {
             ),
         );
 
-    info!("Dev server running at http://localhost:{}", port);
+    info!("Dev server running at http://{}:{}", host, port);
 
-    let acceptor = TcpListener::new(format!("0.0.0.0:{port}")).bind().await;
+    let acceptor = TcpListener::new(format!("{host}:{port}")).bind().await;
     // `serve` blocks until the process is killed; `watcher` is owned by
     // this scope and only dropped on shutdown, which is what keeps it
     // alive throughout the server's lifetime.
@@ -214,16 +214,16 @@ pub async fn run_dev_server(project_root: &Path, port: u16) -> Result<()> {
 }
 
 /// Serve a static directory (for preview)
-pub async fn serve_static(dir: &Path, port: u16) -> Result<()> {
+pub async fn serve_static(dir: &Path, host: &str, port: u16) -> Result<()> {
     let router = Router::with_path("<**path>").get(
         StaticDir::new([dir.to_str().unwrap_or("dist")])
             .defaults("index.html")
             .auto_list(false),
     );
 
-    info!("Preview server running at http://localhost:{}", port);
+    info!("Preview server running at http://{}:{}", host, port);
 
-    let acceptor = TcpListener::new(format!("0.0.0.0:{port}")).bind().await;
+    let acceptor = TcpListener::new(format!("{host}:{port}")).bind().await;
     Server::new(acceptor).serve(router).await;
 
     Ok(())

@@ -14,6 +14,7 @@ use crate::routing::scan_routes;
 use crate::sidebar::{generate_nav, generate_sidebar};
 use crate::source::DocsSource;
 use crate::typst_processor::TypstProcessor;
+use crate::util::safe_join_relative;
 use crate::util::strip_html_tags;
 
 /// Internal build result
@@ -31,6 +32,7 @@ pub(crate) fn build_pages(
     source: &dyn DocsSource,
     config: &SiteConfig,
     project_root: Option<&Path>,
+    source_root: Option<&Path>,
     plugins: &[Box<dyn Plugin>],
 ) -> NovelResult<BuildResult> {
     // Plugin: on_pre_build
@@ -46,15 +48,13 @@ pub(crate) fn build_pages(
 
     let syntax_theme = config.markdown.syntax_theme.clone();
     let md_processor = MarkdownProcessor::new(project_root)
+        .with_source_root(source_root)
         .with_line_numbers(config.markdown.show_line_numbers)
         .with_syntax_theme(syntax_theme)
         .with_custom_directives(custom_directives);
 
     // Typst processor (only for filesystem-backed builds)
-    let typst_processor = project_root.map(|pr| {
-        let docs_root = pr.join(&config.root);
-        TypstProcessor::new(&docs_root)
-    });
+    let typst_processor = source_root.map(TypstProcessor::new);
 
     // Check typst CLI availability once if there are .typ files
     info!("Scanning routes...");
@@ -244,12 +244,38 @@ pub(crate) fn build_pages(
 
 /// Convert a route path to an output file path.
 /// All pages use `<route>/index.html` for clean URLs.
-pub(crate) fn route_to_file_path(output_dir: &Path, route_path: &str) -> std::path::PathBuf {
+pub(crate) fn route_to_file_path(
+    output_dir: &Path,
+    route_path: &str,
+) -> std::io::Result<std::path::PathBuf> {
     if route_path == "/" {
-        output_dir.join("index.html")
+        safe_join_relative(output_dir, Path::new("index.html"))
     } else {
         let trimmed = route_path.trim_matches('/');
-        output_dir.join(trimmed).join("index.html")
+        safe_join_relative(output_dir, Path::new(trimmed).join("index.html"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::route_to_file_path;
+    use std::path::Path;
+
+    #[test]
+    fn route_to_file_path_rejects_parent_segments() {
+        assert!(route_to_file_path(Path::new("dist"), "/../secret").is_err());
+        assert!(route_to_file_path(Path::new("dist"), "/guide/../../secret").is_err());
+    }
+
+    #[test]
+    fn route_to_file_path_keeps_pages_under_output_dir() {
+        assert_eq!(
+            route_to_file_path(Path::new("dist"), "/guide/intro").unwrap(),
+            Path::new("dist")
+                .join("guide")
+                .join("intro")
+                .join("index.html")
+        );
     }
 }
 
