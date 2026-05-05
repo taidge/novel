@@ -31,7 +31,7 @@ pub fn compile(cfg: &SassConfig, project_root: &Path, output_dir: &Path) -> Resu
         };
         let input_path = project_root.join(input_rel);
         let css = grass::from_path(&input_path, &opts)?;
-        let output_path = output_dir.join(output_rel);
+        let output_path = crate::util::safe_join_relative(output_dir, Path::new(output_rel))?;
         if let Some(parent) = output_path.parent() {
             std::fs::create_dir_all(parent)?;
         }

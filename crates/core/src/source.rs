@@ -39,13 +39,19 @@ impl DirSource {
     pub fn new(docs_root: PathBuf) -> Self {
         Self { docs_root }
     }
+
+    fn source_path(&self, relative_path: &str) -> NovelResult<PathBuf> {
+        Ok(crate::util::safe_join_relative(
+            &self.docs_root,
+            std::path::Path::new(relative_path),
+        )?)
+    }
 }
 
 impl DocsSource for DirSource {
     fn list_files(&self) -> Vec<String> {
         let mut files = Vec::new();
         for entry in WalkDir::new(&self.docs_root)
-            .follow_links(true)
             .into_iter()
             .filter_map(|e| e.ok())
         {
@@ -61,18 +67,20 @@ impl DocsSource for DirSource {
     }
 
     fn read_to_string(&self, relative_path: &str) -> NovelResult<String> {
-        let path = self.docs_root.join(relative_path);
+        let path = self.source_path(relative_path)?;
         // io::Error → NovelError::Io via the #[from] in the enum.
         Ok(std::fs::read_to_string(path)?)
     }
 
     fn read_bytes(&self, relative_path: &str) -> NovelResult<Vec<u8>> {
-        let path = self.docs_root.join(relative_path);
+        let path = self.source_path(relative_path)?;
         Ok(std::fs::read(path)?)
     }
 
     fn exists(&self, relative_path: &str) -> bool {
-        self.docs_root.join(relative_path).exists()
+        self.source_path(relative_path)
+            .map(|path| path.exists())
+            .unwrap_or(false)
     }
 }
 

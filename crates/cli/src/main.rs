@@ -32,6 +32,9 @@ enum Commands {
         /// Port to listen on
         #[arg(short, long, default_value = "3000")]
         port: u16,
+        /// Host/interface to bind
+        #[arg(long, default_value = "127.0.0.1")]
+        host: String,
     },
     /// Build the static site for production
     Build {
@@ -50,6 +53,9 @@ enum Commands {
         /// Port to listen on
         #[arg(short, long, default_value = "4000")]
         port: u16,
+        /// Host/interface to bind
+        #[arg(long, default_value = "127.0.0.1")]
+        host: String,
     },
     /// Initialize a new documentation project
     Init {
@@ -83,8 +89,8 @@ async fn main() -> Result<()> {
     let project_root = cli.root.canonicalize().unwrap_or(cli.root);
 
     match cli.command {
-        Commands::Dev { port } => {
-            dev::run_dev_server(&project_root, port).await?;
+        Commands::Dev { port, host } => {
+            dev::run_dev_server(&project_root, &host, port).await?;
         }
         Commands::Build {
             force: _,
@@ -115,11 +121,11 @@ async fn main() -> Result<()> {
                 .build()?;
             site.write_to_default_output()?;
         }
-        Commands::Preview { port } => {
-            info!("Previewing built site on http://localhost:{}", port);
+        Commands::Preview { port, host } => {
+            info!("Previewing built site on http://{}:{}", host, port);
             let config = novel_shared::SiteConfig::load(&project_root)?;
             let output_dir = config.output_dir(&project_root);
-            dev::serve_static(&output_dir, port).await?;
+            dev::serve_static(&output_dir, &host, port).await?;
         }
         Commands::Init { name } => {
             init::create_project(&project_root, &name)?;

@@ -25,6 +25,7 @@ static INTERNAL_LINK_RE: LazyLock<Regex> =
 /// Main markdown processing engine
 pub struct MarkdownProcessor {
     project_root: Option<std::path::PathBuf>,
+    source_root: Option<std::path::PathBuf>,
     show_line_numbers: bool,
     syntax_theme: String,
     custom_directives: Vec<Box<dyn ContainerDirective>>,
@@ -34,10 +35,16 @@ impl MarkdownProcessor {
     pub fn new(project_root: Option<&Path>) -> Self {
         Self {
             project_root: project_root.map(|p| p.to_path_buf()),
+            source_root: None,
             show_line_numbers: false,
             syntax_theme: "base16-ocean.dark".to_string(),
             custom_directives: Vec::new(),
         }
+    }
+
+    pub fn with_source_root(mut self, source_root: Option<&Path>) -> Self {
+        self.source_root = source_root.map(|p| p.to_path_buf());
+        self
     }
 
     pub fn with_line_numbers(mut self, show: bool) -> Self {
@@ -106,7 +113,14 @@ impl MarkdownProcessor {
             | Options::ENABLE_MATH;
 
         let parser = Parser::new_ext(&processed, options);
-        let file_dir = file_path.parent().unwrap_or(Path::new("."));
+        let source_file_path = if file_path.is_absolute() {
+            file_path.to_path_buf()
+        } else if let Some(ref source_root) = self.source_root {
+            source_root.join(file_path)
+        } else {
+            file_path.to_path_buf()
+        };
+        let file_dir = source_file_path.parent().unwrap_or(Path::new("."));
 
         let mut toc: Vec<TocItem> = Vec::new();
         let mut first_h1: Option<String> = None;

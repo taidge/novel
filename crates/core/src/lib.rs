@@ -273,6 +273,7 @@ impl Novel for DirNovel {
                             &source,
                             &locale_config,
                             Some(&self.project_root),
+                            Some(&locale_docs),
                             &self.plugins,
                         )?;
 
@@ -313,6 +314,7 @@ impl Novel for DirNovel {
                         &source,
                         &self.config,
                         Some(&self.project_root),
+                        Some(&version_docs),
                         &self.plugins,
                     )?;
 
@@ -384,6 +386,7 @@ impl Novel for DirNovel {
                     &source,
                     &locale_config,
                     Some(&self.project_root),
+                    Some(&locale_docs),
                     &self.plugins,
                 )?;
 
@@ -480,6 +483,7 @@ impl Novel for DirNovel {
                 &source,
                 &self.config,
                 Some(&self.project_root),
+                Some(&docs_root),
                 &self.plugins,
             )?;
 
@@ -651,7 +655,7 @@ impl<E: Embed + Send + Sync + 'static> Novel for EmbedNovel<E> {
         }
 
         let source = EmbedSource::<E>::new();
-        let br = build_pages(&source, &self.config, None, &self.plugins)?;
+        let br = build_pages(&source, &self.config, None, None, &self.plugins)?;
         let engine = TemplateEngine::new(None, &self.plugins, &self.config)?;
 
         let plugins = std::mem::take(&mut self.plugins);
@@ -1364,7 +1368,7 @@ impl BuiltSite {
         // Pages
         for page in &self.pages {
             let html = self.render_page(page)?;
-            let out_path = route_to_file_path(output_dir, &page.route.route_path);
+            let out_path = route_to_file_path(output_dir, &page.route.route_path)?;
             if let Some(parent) = out_path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
@@ -1380,7 +1384,7 @@ impl BuiltSite {
                 &self.config,
                 &self.nav,
             )?;
-            let out_path = route_to_file_path(output_dir, &lp.route_path);
+            let out_path = route_to_file_path(output_dir, &lp.route_path)?;
             if let Some(parent) = out_path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
@@ -1393,7 +1397,7 @@ impl BuiltSite {
             let html =
                 self.engine
                     .render_terms(tp.title.clone(), &tp.terms, &self.config, &self.nav)?;
-            let out_path = route_to_file_path(output_dir, &tp.route_path);
+            let out_path = route_to_file_path(output_dir, &tp.route_path)?;
             if let Some(parent) = out_path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
@@ -1410,7 +1414,7 @@ impl BuiltSite {
         for plugin in &self.plugins {
             let files = plugin.on_build_complete(&view);
             for (rel_path, contents) in files {
-                let dest = output_dir.join(&rel_path);
+                let dest = util::safe_join_relative(output_dir, Path::new(&rel_path))?;
                 if let Some(parent) = dest.parent() {
                     std::fs::create_dir_all(parent)?;
                 }
@@ -1497,7 +1501,7 @@ window.location.replace('/' + (match || '{}') + '/');
             }
 
             let data = self.source.read_bytes(&file_path)?;
-            let dest = output_dir.join(&file_path);
+            let dest = util::safe_join_relative(output_dir, Path::new(&file_path))?;
             if let Some(parent) = dest.parent() {
                 std::fs::create_dir_all(parent)?;
             }
