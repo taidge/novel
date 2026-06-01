@@ -53,7 +53,7 @@ pub fn generate_json_feed(site: &BuiltSiteView) -> Option<String> {
             )
         })
         .map(|p| {
-            let url = format!("{}{}", base_url, &p.route.route_path);
+            let url = format!("{}{}", base_url, p.route.route_path);
             let mut item = serde_json::json!({
                 "id": url,
                 "url": url,
@@ -119,7 +119,7 @@ pub fn generate_feed_xml(site: &BuiltSiteView) -> Option<String> {
         ) {
             continue;
         }
-        let url = format!("{}{}", base_url, &page.route.route_path);
+        let url = format!("{}{}", base_url, page.route.route_path);
         xml.push_str("  <entry>\n");
         xml.push_str(&format!("    <title>{}</title>\n", xml_escape(&page.title)));
         xml.push_str(&format!("    <link href=\"{}\"/>\n", url));
@@ -171,7 +171,7 @@ pub fn generate_collection_feed_xml(site: &BuiltSiteView, collection: &str) -> O
     xml.push_str(&format!("  <id>{}/{}/</id>\n", base_url, collection));
 
     for page in entries {
-        let url = format!("{}{}", base_url, &page.route.route_path);
+        let url = format!("{}{}", base_url, page.route.route_path);
         xml.push_str("  <entry>\n");
         xml.push_str(&format!("    <title>{}</title>\n", xml_escape(&page.title)));
         xml.push_str(&format!("    <link href=\"{}\"/>\n", url));

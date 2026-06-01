@@ -284,9 +284,7 @@ impl MarkdownProcessor {
                     events.push(Event::Html(CowStr::from("</a>")));
                 }
                 // Images: add lazy loading and zoom support
-                Event::Start(Tag::Image {
-                    dest_url, title: _, ..
-                }) => {
+                Event::Start(Tag::Image { dest_url, .. }) => {
                     events.push(Event::Html(CowStr::from(format!(
                         "<img src=\"{}\" alt=\"",
                         dest_url
