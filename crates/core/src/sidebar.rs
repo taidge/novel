@@ -63,11 +63,10 @@ fn load_sidebar_from_content(
     prefix: &str,
     pages: &[&PageData],
 ) -> NovelResult<Vec<SidebarItem>> {
-    let entries: Vec<MetaEntry> =
-        serde_json::from_str(content).map_err(|e| NovelError::Data {
-            file: file.to_string(),
-            message: e.to_string(),
-        })?;
+    let entries: Vec<MetaEntry> = serde_json::from_str(content).map_err(|e| NovelError::Data {
+        file: file.to_string(),
+        message: e.to_string(),
+    })?;
 
     let mut items = Vec::new();
     for entry in entries {

@@ -256,29 +256,6 @@ pub(crate) fn route_to_file_path(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::route_to_file_path;
-    use std::path::Path;
-
-    #[test]
-    fn route_to_file_path_rejects_parent_segments() {
-        assert!(route_to_file_path(Path::new("dist"), "/../secret").is_err());
-        assert!(route_to_file_path(Path::new("dist"), "/guide/../../secret").is_err());
-    }
-
-    #[test]
-    fn route_to_file_path_keeps_pages_under_output_dir() {
-        assert_eq!(
-            route_to_file_path(Path::new("dist"), "/guide/intro").unwrap(),
-            Path::new("dist")
-                .join("guide")
-                .join("intro")
-                .join("index.html")
-        );
-    }
-}
-
 // ---------------------------------------------------------------------------
 // internal helpers
 // ---------------------------------------------------------------------------
@@ -421,5 +398,28 @@ pub(crate) fn get_git_last_updated(file_path: &Path) -> Option<String> {
         if date.is_empty() { None } else { Some(date) }
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::route_to_file_path;
+    use std::path::Path;
+
+    #[test]
+    fn route_to_file_path_rejects_parent_segments() {
+        assert!(route_to_file_path(Path::new("dist"), "/../secret").is_err());
+        assert!(route_to_file_path(Path::new("dist"), "/guide/../../secret").is_err());
+    }
+
+    #[test]
+    fn route_to_file_path_keeps_pages_under_output_dir() {
+        assert_eq!(
+            route_to_file_path(Path::new("dist"), "/guide/intro").unwrap(),
+            Path::new("dist")
+                .join("guide")
+                .join("intro")
+                .join("index.html")
+        );
     }
 }

@@ -59,8 +59,8 @@ impl TeraRenderer {
 
 impl TemplateRenderer for TeraRenderer {
     fn render(&self, template_name: &str, ctx: &RenderContext) -> NovelResult<String> {
-        let context = tera::Context::from_serialize(ctx)
-            .map_err(|e| NovelError::Template(e.to_string()))?;
+        let context =
+            tera::Context::from_serialize(ctx).map_err(|e| NovelError::Template(e.to_string()))?;
         self.tera
             .render(template_name, &context)
             .map_err(|e| NovelError::Template(e.to_string()))

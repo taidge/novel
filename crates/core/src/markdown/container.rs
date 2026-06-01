@@ -4,8 +4,7 @@ use std::sync::LazyLock;
 
 // Compile-time regex constants. `open_re` has to stay dynamic because the
 // directive set depends on plugins, but the others are fixed.
-static CLOSE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^:::$").expect("valid regex"));
+static CLOSE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^:::$").expect("valid regex"));
 static TAB_HEADER_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^==\s+(.+)$").expect("valid regex"));
 static BADGE_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -218,12 +217,7 @@ pub fn preprocess_containers(
                         tab_panels.push(current_panel.clone());
                         current_panel.clear();
                     }
-                    render_tabs_html(
-                        &mut output,
-                        current_tabs_group,
-                        &tab_headers,
-                        &tab_panels,
-                    );
+                    render_tabs_html(&mut output, current_tabs_group, &tab_headers, &tab_panels);
                     tab_headers.clear();
                     tab_panels.clear();
                     in_tab_panel = false;
@@ -303,12 +297,7 @@ pub fn preprocess_containers(
                     if in_tab_panel {
                         tab_panels.push(current_panel.clone());
                     }
-                    render_tabs_html(
-                        &mut output,
-                        current_tabs_group,
-                        &tab_headers,
-                        &tab_panels,
-                    );
+                    render_tabs_html(&mut output, current_tabs_group, &tab_headers, &tab_panels);
                 }
                 Some(ContainerType::Steps) => {
                     output.push_str("\n</div>\n");

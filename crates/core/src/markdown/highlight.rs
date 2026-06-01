@@ -30,4 +30,3 @@ pub fn highlight_code(code: &str, lang: &str, theme_name: &str) -> String {
         ),
     }
 }
-

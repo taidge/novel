@@ -91,8 +91,9 @@ impl ContainerDirective for CodeGroupDirective {
 
         let group = CODE_GROUP_COUNTER.fetch_add(1, Ordering::Relaxed);
 
-        let mut html =
-            String::from("<div class=\"code-group\">\n<div class=\"tabs-header\" role=\"tablist\">\n");
+        let mut html = String::from(
+            "<div class=\"code-group\">\n<div class=\"tabs-header\" role=\"tablist\">\n",
+        );
         for (i, (label, _, _)) in tabs.iter().enumerate() {
             let is_active = i == 0;
             let active_cls = if is_active { " active" } else { "" };

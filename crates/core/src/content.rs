@@ -76,11 +76,10 @@ pub fn discover_collections(docs_root: &Path) -> NovelResult<HashMap<String, Col
             None => continue,
         };
         let raw = std::fs::read_to_string(&cfg_path)?;
-        let config: CollectionConfig =
-            toml::from_str(&raw).map_err(|e| NovelError::Data {
-                file: cfg_path.display().to_string(),
-                message: e.to_string(),
-            })?;
+        let config: CollectionConfig = toml::from_str(&raw).map_err(|e| NovelError::Data {
+            file: cfg_path.display().to_string(),
+            message: e.to_string(),
+        })?;
         out.insert(name, Collection { config });
     }
     Ok(out)

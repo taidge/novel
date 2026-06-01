@@ -78,4 +78,3 @@ fn extract_sections(html: &str, toc: &[novel_shared::TocItem]) -> Vec<SearchSect
 
     sections
 }
-
