@@ -112,3 +112,5 @@ Each entry in the `head` array requires:
 - `tag` — the HTML tag name
 - `attrs` — key-value map of attributes
 - `content` — optional inner text content
+
+Novel validates tag and attribute names before rendering them. Tag names must be simple HTML identifiers, attribute names must be identifiers or `data-*` attributes, and event-handler attributes such as `onload` are rejected. Attribute values and content are still trusted author input: do not use custom head tags from untrusted users or unreviewed third-party content.
