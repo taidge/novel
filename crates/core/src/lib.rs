@@ -1217,6 +1217,17 @@ impl BuiltSite {
         &self.config
     }
 
+    /// Route paths generated during post-processing, such as collection lists
+    /// and taxonomy term pages. These are rendered by [`BuiltSite::write_to`]
+    /// but are not part of [`BuiltSite::pages`] because they do not originate
+    /// from source content files.
+    pub fn generated_route_paths(&self) -> impl Iterator<Item = &str> {
+        self.list_pages
+            .iter()
+            .map(|page| page.route_path.as_str())
+            .chain(self.terms_pages.iter().map(|page| page.route_path.as_str()))
+    }
+
     // -- rendering ----------------------------------------------------------
 
     /// Render a single page to a full HTML string.

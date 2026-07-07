@@ -24,6 +24,7 @@ pub fn run_check(project_root: &Path) -> Result<()> {
         .pages()
         .iter()
         .map(|page| page.route.route_path.as_str())
+        .chain(site.generated_route_paths())
         .collect();
 
     // Check for missing descriptions
