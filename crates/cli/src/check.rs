@@ -25,17 +25,29 @@ pub fn run_check(project_root: &Path) -> Result<()> {
         .iter()
         .map(|page| page.route.route_path.as_str())
         .collect();
+    let public_assets = collect_public_assets(&site.config().docs_root_checked(project_root)?)?;
+    let base = site.config().base.as_str();
 
     // Check for missing descriptions
     for page in site.pages() {
         for link in collect_internal_links(&page.content_html) {
-            let path = link.split('#').next().unwrap_or(&link);
-            if is_missing_internal_route(path, &valid_routes) {
-                warn!(
-                    "Dead link: {} -> {} ({})",
-                    page.route.route_path, link, page.route.relative_path
-                );
-                errors += 1;
+            let path = normalize_internal_reference(&link, base);
+            match missing_internal_reference(path.as_str(), &valid_routes, &public_assets) {
+                Some(MissingReference::Route) => {
+                    warn!(
+                        "Dead link: {} -> {} ({})",
+                        page.route.route_path, link, page.route.relative_path
+                    );
+                    errors += 1;
+                }
+                Some(MissingReference::Asset) => {
+                    warn!(
+                        "Missing static asset: {} -> {} ({})",
+                        page.route.route_path, link, page.route.relative_path
+                    );
+                    errors += 1;
+                }
+                None => {}
             }
         }
 
@@ -98,20 +110,35 @@ fn collect_sidebar_links(items: &[novel_shared::SidebarItem]) -> Vec<&str> {
     links
 }
 
-fn is_missing_internal_route(path: &str, valid_routes: &HashSet<&str>) -> bool {
+#[derive(Debug, PartialEq, Eq)]
+enum MissingReference {
+    Route,
+    Asset,
+}
+
+fn missing_internal_reference(
+    path: &str,
+    valid_routes: &HashSet<&str>,
+    public_assets: &HashSet<String>,
+) -> Option<MissingReference> {
     if path.is_empty() || path == "/" {
-        return false;
+        return None;
     }
 
-    if path
-        .rsplit('/')
-        .next()
-        .map(|last| last.contains('.'))
-        .unwrap_or(false)
-    {
-        return false;
+    if is_static_asset_reference(path) {
+        if public_assets.contains(path) {
+            None
+        } else {
+            Some(MissingReference::Asset)
+        }
+    } else if is_missing_internal_route(path, valid_routes) {
+        Some(MissingReference::Route)
+    } else {
+        None
     }
+}
 
+fn is_missing_internal_route(path: &str, valid_routes: &HashSet<&str>) -> bool {
     if valid_routes.contains(path) {
         return false;
     }
@@ -124,9 +151,124 @@ fn is_missing_internal_route(path: &str, valid_routes: &HashSet<&str>) -> bool {
     !valid_routes.contains(alt.as_str())
 }
 
+fn normalize_internal_reference(link: &str, base: &str) -> String {
+    let path = link.split(['#', '?']).next().unwrap_or(link);
+    let normalized_base = format!("/{}", base.trim().trim_matches('/'))
+        .trim_end_matches('/')
+        .to_string();
+    if !normalized_base.is_empty()
+        && normalized_base != "/"
+        && (path == normalized_base || path.starts_with(&format!("{normalized_base}/")))
+    {
+        let stripped = path.trim_start_matches(&normalized_base);
+        if stripped.is_empty() {
+            "/".to_string()
+        } else {
+            stripped.to_string()
+        }
+    } else {
+        path.to_string()
+    }
+}
+
+fn collect_public_assets(docs_root: &Path) -> Result<HashSet<String>> {
+    let mut out = HashSet::new();
+    collect_public_assets_from_dir(docs_root, docs_root, &mut out)?;
+    Ok(out)
+}
+
+fn collect_public_assets_from_dir(
+    docs_root: &Path,
+    dir: &Path,
+    out: &mut HashSet<String>,
+) -> Result<()> {
+    if !dir.is_dir() {
+        return Ok(());
+    }
+
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            collect_public_assets_from_dir(docs_root, &path, out)?;
+        } else if file_type.is_file()
+            && let Ok(relative) = path.strip_prefix(docs_root)
+        {
+            let rel = relative.to_string_lossy().replace('\\', "/");
+            if is_public_static_asset(&rel) {
+                out.insert(format!("/{}", rel.trim_start_matches('/')));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn is_public_static_asset(file_path: &str) -> bool {
+    let path = Path::new(file_path);
+    if file_path.ends_with(".md") || file_path.ends_with(".typ") {
+        return false;
+    }
+
+    if path
+        .components()
+        .next()
+        .and_then(|component| component.as_os_str().to_str())
+        == Some("data")
+    {
+        return false;
+    }
+
+    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    if file_name == "_collection.toml" || file_name == "_meta.json" {
+        return false;
+    }
+
+    let ext = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
+    if file_name.starts_with('_') && matches!(ext, "json" | "toml" | "yaml" | "yml") {
+        return false;
+    }
+
+    true
+}
+
+fn is_static_asset_reference(path: &str) -> bool {
+    path.rsplit('/')
+        .next()
+        .and_then(|last| last.rsplit('.').next())
+        .map(|ext| {
+            matches!(
+                ext,
+                "css"
+                    | "js"
+                    | "mjs"
+                    | "png"
+                    | "jpg"
+                    | "jpeg"
+                    | "gif"
+                    | "svg"
+                    | "webp"
+                    | "avif"
+                    | "ico"
+                    | "pdf"
+                    | "woff"
+                    | "woff2"
+                    | "ttf"
+                    | "otf"
+                    | "json"
+                    | "xml"
+                    | "txt"
+            )
+        })
+        .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::is_missing_internal_route;
+    use super::{
+        MissingReference, is_missing_internal_route, missing_internal_reference,
+        normalize_internal_reference,
+    };
     use std::collections::HashSet;
 
     #[test]
@@ -140,6 +282,38 @@ mod tests {
     #[test]
     fn route_check_ignores_static_asset_paths() {
         let routes = HashSet::from(["/"]);
-        assert!(!is_missing_internal_route("/images/logo.png", &routes));
+        let assets = HashSet::from(["/images/logo.png".to_string()]);
+
+        assert_eq!(
+            missing_internal_reference("/images/logo.png", &routes, &assets),
+            None
+        );
+        assert_eq!(
+            missing_internal_reference("/images/missing.png", &routes, &assets),
+            Some(MissingReference::Asset)
+        );
+    }
+
+    #[test]
+    fn route_check_reports_missing_routes() {
+        let routes = HashSet::from(["/", "/guide/"]);
+        let assets = HashSet::new();
+
+        assert_eq!(
+            missing_internal_reference("/missing", &routes, &assets),
+            Some(MissingReference::Route)
+        );
+    }
+
+    #[test]
+    fn references_are_normalized_against_base_and_fragments() {
+        assert_eq!(
+            normalize_internal_reference("/docs/images/logo.png?v=1#top", "/docs/"),
+            "/images/logo.png"
+        );
+        assert_eq!(
+            normalize_internal_reference("/images/logo.png", "/docs/"),
+            "/images/logo.png"
+        );
     }
 }

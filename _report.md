@@ -80,8 +80,8 @@ PR 状态：已提交到 draft PR #9 `Fix static site security boundaries`，URL
 - [ ] 6.6 日期字段真实解析与校验  
   未完成。
 
-- [ ] 6.7 `check_dead_links` 与静态资产存在性检查语义统一  
-  未完成。
+- [x] 6.7 `check_dead_links` 与静态资产存在性检查语义统一
+  已在独立 PR 中修复：Markdown `href`/`src` 内部引用都会被收集；路由引用按页面路由表检查，静态资产引用按公开 assets 集合检查；CLI `novel check` 会报告缺失静态资产，`markdown.check_dead_links = true` 的 build 会在缺失路由或资产时失败。
 
 - [x] 安全项：home feature card 内联 JS 字符串注入面  
   已改为普通 `<a href>` 渲染，不再把 frontmatter URL 写入 inline JS 字符串。

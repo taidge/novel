@@ -13,8 +13,8 @@ use crate::routing::scan_routes;
 use crate::sidebar::{generate_nav, generate_sidebar};
 use crate::source::DocsSource;
 use crate::typst_processor::TypstProcessor;
-use crate::util::safe_join_relative;
 use crate::util::strip_html_tags;
+use crate::util::{is_public_static_asset, safe_join_relative};
 
 /// Internal build result
 pub(crate) struct BuildResult {
@@ -187,7 +187,14 @@ pub(crate) fn build_pages(
     set_prev_next_links(&mut pages);
 
     if config.markdown.check_dead_links {
-        check_dead_links(&pages);
+        let dead_links = check_dead_links(source, &pages);
+        if !dead_links.is_empty() {
+            return Err(NovelError::Build(format!(
+                "Found {} dead link(s): {}",
+                dead_links.len(),
+                dead_links.join("; ")
+            )));
+        }
     }
 
     let mut nav = if config.theme.nav.is_empty() {
@@ -289,32 +296,83 @@ fn set_prev_next_links(pages: &mut [PageData]) {
     }
 }
 
-fn check_dead_links(pages: &[PageData]) {
+fn check_dead_links(source: &dyn DocsSource, pages: &[PageData]) -> Vec<String> {
     let valid_routes: HashSet<&str> = pages.iter().map(|p| p.route.route_path.as_str()).collect();
+    let valid_assets = public_asset_routes(source);
+    let mut dead_links = Vec::new();
 
     for page in pages {
         let links = collect_internal_links(&page.content_html);
         for link in links {
-            let path = link.split('#').next().unwrap_or(&link);
+            let path = reference_path(&link);
             if path.is_empty() || path == "/" {
                 continue;
             }
-            if !valid_routes.contains(path) {
-                let alt = if path.ends_with('/') {
-                    path.trim_end_matches('/').to_string()
-                } else {
-                    format!("{}/", path)
-                };
-                if !valid_routes.contains(alt.as_str()) {
-                    tracing::warn!(
-                        "Dead link in {}: {} (target not found)",
-                        page.route.relative_path,
-                        link
-                    );
-                }
+
+            let missing_asset = is_static_asset_reference(path) && !valid_assets.contains(path);
+            let missing_route = !is_static_asset_reference(path)
+                && !valid_routes.contains(path)
+                && !valid_routes.contains(route_slash_variant(path).as_str());
+
+            if missing_asset || missing_route {
+                dead_links.push(format!("{} -> {}", page.route.relative_path, link));
             }
         }
     }
+
+    dead_links
+}
+
+fn public_asset_routes(source: &dyn DocsSource) -> HashSet<String> {
+    source
+        .list_files()
+        .into_iter()
+        .filter(|path| is_public_static_asset(path))
+        .map(|path| format!("/{}", path.trim_start_matches('/')))
+        .collect()
+}
+
+fn reference_path(link: &str) -> &str {
+    link.split(['#', '?']).next().unwrap_or(link)
+}
+
+fn route_slash_variant(path: &str) -> String {
+    if path.ends_with('/') {
+        path.trim_end_matches('/').to_string()
+    } else {
+        format!("{}/", path)
+    }
+}
+
+fn is_static_asset_reference(path: &str) -> bool {
+    path.rsplit('/')
+        .next()
+        .map(|last| {
+            let ext = last.rsplit('.').next().unwrap_or("");
+            matches!(
+                ext,
+                "css"
+                    | "js"
+                    | "mjs"
+                    | "png"
+                    | "jpg"
+                    | "jpeg"
+                    | "gif"
+                    | "svg"
+                    | "webp"
+                    | "avif"
+                    | "ico"
+                    | "pdf"
+                    | "woff"
+                    | "woff2"
+                    | "ttf"
+                    | "otf"
+                    | "json"
+                    | "xml"
+                    | "txt"
+            )
+        })
+        .unwrap_or(false)
 }
 
 /// Compute breadcrumbs for each page from its route path segments.
