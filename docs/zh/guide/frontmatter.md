@@ -1,3 +1,8 @@
+---
+title: Frontmatter
+description: 通过 Markdown frontmatter 控制页面元数据、布局和导航行为。
+---
+
 # Frontmatter
 
 每个 Markdown 文件都可以在开头加入以 `---` 包围的 YAML frontmatter。Frontmatter 用于控制页面元数据和布局选项。
@@ -22,24 +27,23 @@ description: 本页面的简短描述
 
 | 字段 | 类型 | 描述 |
 |---|---|---|
-| `date` | `YYYY-MM-DD` | 发布日期 —— 用于排序、归档、订阅和 OG `article:published_time` |
-| `updated` | `YYYY-MM-DD` | 最后更新日期 —— 对应 OG `article:modified_time` |
+| `published_at` | `YYYY-MM-DD` | 发布日期 —— 用于排序、归档、订阅和 OG `article:published_time` |
+| `updated_at` | `YYYY-MM-DD` | 最后更新日期 —— 对应 OG `article:modified_time` |
 | `draft` | bool | 构建时排除,除非传入 `--drafts` |
 | `weight` | int | 当 `sort_by = "weight"` 时作为排序键 |
 | `summary` | string | 手动摘要(覆盖 `<!-- more -->` 分隔符) |
-| `tags` | list | 分类条目(`/tags/<term>/`) |
-| `categories` | list | 分类条目(`/categories/<term>/`) |
+| `taxonomies` | map | 按已配置分类 key 组织的分类条目 |
 | `series` | string | 系列 id —— 生成 `/series/<slug>/` |
 | `authors` | list | 作者名 —— 对应 OG `article:author` |
-| `expiry_date` | `YYYY-MM-DD` | 该日期之后被排除,除非传入 `--future` |
+| `expires_at` | `YYYY-MM-DD` | 该日期之后被排除,除非传入 `--future` |
 
 ## 页面类型
 
-通过 `page_type` 控制页面布局:
+通过 `layout` 控制页面布局:
 
 ```yaml
 ---
-page_type: home   # 或 doc、custom、404
+layout: home   # 或 doc、custom、404
 ---
 ```
 
@@ -62,18 +66,18 @@ outline: false    # 该页隐藏目录大纲
 
 ## Hero 与 Features
 
-仅在 `page_type: home` 时使用。完整说明见[首页](/guide/home-page)。
+仅在 `layout: home` 时使用。完整说明见[首页](/guide/home-page)。
 
 ```yaml
 ---
-page_type: home
+layout: home
 hero:
   name: 项目名
   text: 标语文字
   tagline: 更长的描述
   actions:
     - text: 开始使用
-      link: /zh/guide/
+      url: /zh/guide/
       theme: brand
 features:
   - title: 特性

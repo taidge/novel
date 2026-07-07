@@ -1,22 +1,23 @@
 ---
-page_type: home
+layout: home
+description: Novel is a fast Rust-powered static documentation site generator for CLI and embedded use.
 hero:
   name: Novel
   text: Fast Documentation, Rust Powered
   tagline: A static documentation site generator — run standalone or embed as a library in your own server
   actions:
     - text: Quick Start
-      link: /guide/getting-started
+      url: /guide/getting-started
       theme: brand
     - text: Library API
-      link: /guide/library
+      url: /guide/library
       theme: alt
 features:
   - title: Blazing Fast
     details: Built entirely in Rust. Builds complete in milliseconds, not seconds.
     icon: "\u26A1"
   - title: Embeddable
-    details: Use as a CLI or embed as a library. Novel::new("docs").build() — that's it.
+    details: Use as a CLI or embed as a library. DirNovel::new("docs").build() — that's it.
     icon: "\U0001F4E6"
   - title: Markdown First
     details: GFM, syntax highlighting, tabs, steps, badges, and container directives out of the box.
@@ -28,6 +29,6 @@ features:
     details: Dark mode, responsive layout, search, prev/next nav, and image zoom built in.
     icon: "\U0001F3A8"
   - title: SEO Ready
-    details: Sitemap, RSS feed, edit links, last-updated timestamps, and custom head tags.
+    details: Sitemap, RSS feed, edit links, Git updated timestamps, and custom head tags.
     icon: "\U0001F50D"
 ---

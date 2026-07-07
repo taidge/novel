@@ -10,11 +10,11 @@ use std::collections::HashMap;
 pub enum MetaEntry {
     /// Simple string: just a filename (without extension)
     Simple(String),
-    /// Object with text and optional link
+    /// Object with text and optional URL
     Object {
         text: String,
         #[serde(default)]
-        link: Option<String>,
+        url: Option<String>,
         #[serde(default)]
         collapsed: Option<bool>,
         #[serde(default)]
@@ -73,17 +73,17 @@ fn load_sidebar_from_content(
         match entry {
             MetaEntry::Simple(name) => {
                 // Find matching page
-                let link = format!("{}/{}", prefix, name);
+                let url = format!("{}/{}", prefix, name);
                 let text = pages
                     .iter()
-                    .find(|p| p.route.route_path == link)
+                    .find(|p| p.route.route_path == url)
                     .map(|p| p.title.clone())
                     .unwrap_or_else(|| title_case(&name));
-                items.push(SidebarItem::Link { text, link });
+                items.push(SidebarItem::Link { text, url });
             }
             MetaEntry::Object {
                 text,
-                link,
+                url,
                 collapsed,
                 items: sub_items,
             } => {
@@ -92,16 +92,16 @@ fn load_sidebar_from_content(
                         .into_iter()
                         .map(|e| match e {
                             MetaEntry::Simple(name) => {
-                                let link = format!("{}/{}", prefix, name);
+                                let url = format!("{}/{}", prefix, name);
                                 SidebarItem::Link {
                                     text: title_case(&name),
-                                    link,
+                                    url,
                                 }
                             }
-                            MetaEntry::Object { text, link, .. } => {
-                                let link = link
-                                    .unwrap_or_else(|| format!("{}/{}", prefix, slugify(&text)));
-                                SidebarItem::Link { text, link }
+                            MetaEntry::Object { text, url, .. } => {
+                                let url =
+                                    url.unwrap_or_else(|| format!("{}/{}", prefix, slugify(&text)));
+                                SidebarItem::Link { text, url }
                             }
                         })
                         .collect();
@@ -110,8 +110,8 @@ fn load_sidebar_from_content(
                         collapsed: collapsed.unwrap_or(false),
                         items: sub_items,
                     });
-                } else if let Some(link) = link {
-                    items.push(SidebarItem::Link { text, link });
+                } else if let Some(url) = url {
+                    items.push(SidebarItem::Link { text, url });
                 }
             }
         }
@@ -127,20 +127,20 @@ fn auto_generate_sidebar_items(prefix: &str, pages: &[&PageData]) -> Vec<Sidebar
         .filter(|p| p.route.route_path != format!("{}/", prefix))
         .map(|p| SidebarItem::Link {
             text: p.title.clone(),
-            link: p.route.route_path.clone(),
+            url: p.route.route_path.clone(),
         })
         .collect();
 
     items.sort_by(|a, b| {
-        let a_link = match a {
-            SidebarItem::Link { link, .. } => link,
+        let a_url = match a {
+            SidebarItem::Link { url, .. } => url,
             _ => "",
         };
-        let b_link = match b {
-            SidebarItem::Link { link, .. } => link,
+        let b_url = match b {
+            SidebarItem::Link { url, .. } => url,
             _ => "",
         };
-        a_link.cmp(b_link)
+        a_url.cmp(b_url)
     });
 
     items
@@ -165,7 +165,7 @@ pub fn generate_nav(pages: &[PageData]) -> Vec<NavItem> {
     dirs.into_iter()
         .map(|dir| NavItem {
             text: title_case(&dir),
-            link: format!("/{}/", dir),
+            url: format!("/{}/", dir),
             active_match: Some(format!("/{}/", dir)),
         })
         .collect()

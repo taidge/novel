@@ -1,8 +1,10 @@
 ---
 title: 你好,世界
-date: 2026-04-01
-tags: [novel, intro]
-categories: [news]
+description: 通过第一篇示例博客文章介绍 Novel 的通用 SSG 模式。
+published_at: 2026-04-01
+taxonomies:
+  tags: [novel, intro]
+  categories: [news]
 series: novel-internals
 ---
 

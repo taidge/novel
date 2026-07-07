@@ -1,6 +1,6 @@
 use crate::plugin::{BuiltSiteView, Plugin};
-use crate::plugins::llms_txt::{is_public_page, join_base_path, page_source_markdown};
-use crate::util::strip_html_tags;
+use crate::plugins::llms_txt::{is_public_page, page_source_markdown};
+use crate::util::{join_base_path, join_site_url, strip_html_tags};
 use novel_shared::PageData;
 use std::path::Path;
 
@@ -34,7 +34,7 @@ pub fn markdown_url_for_route(site: &BuiltSiteView, route_path: &str) -> String 
     let output = markdown_output_path(route_path);
     let path = format!("/{}", output.replace('\\', "/"));
     if let Some(site_url) = site.config.site_url.as_deref() {
-        format!("{}{}", site_url.trim_end_matches('/'), path)
+        join_site_url(site_url, &site.config.base, &path)
     } else {
         join_base_path(&site.config.base, &path)
     }

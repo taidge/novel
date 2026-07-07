@@ -1,3 +1,8 @@
+---
+title: Search
+description: Configure Novel's built-in client-side search index and search UI.
+---
+
 # Search
 
 Novel includes built-in client-side search with no external dependencies or services required.

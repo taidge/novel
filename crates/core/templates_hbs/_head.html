@@ -31,13 +31,13 @@
 {{/if}}
 {{/if}}
 {{#if site.site_url}}{{#unless page.frontmatter.noindex}}
-{{#if (eq page.frontmatter.page_type "home")}}
+{{#if (eq page.frontmatter.layout "home")}}
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":{{{json site.title}}},"description":{{{json site.description}}},"url":{{{json site.site_url}}}}</script>
 {{else}}{{#if (eq page.frontmatter.layout "home")}}
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":{{{json site.title}}},"description":{{{json site.description}}},"url":{{{json site.site_url}}}}</script>
-{{else}}{{#if page.date}}
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":{{{json page.title}}},"description":{{{json page.description}}},"url":{{{json (concat site.site_url page.route.route_path)}}},"datePublished":{{{json page.date}}}{{#if page.last_updated}},"dateModified":{{{json page.last_updated}}}{{/if}}{{#if page.frontmatter.og_image}},"image":{{{json page.frontmatter.og_image}}}{{/if}}}</script>
+{{else}}{{#if page.published_at}}
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":{{{json page.title}}},"description":{{{json page.description}}},"url":{{{json (concat site.site_url page.route.route_path)}}},"datePublished":{{{json page.published_at}}}{{#if page.git_updated_at}},"dateModified":{{{json page.git_updated_at}}}{{/if}}{{#if page.frontmatter.og_image}},"image":{{{json page.frontmatter.og_image}}}{{/if}}}</script>
 {{else}}{{#if page}}
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":{{{json page.title}}},"description":{{{json page.description}}},"url":{{{json (concat site.site_url page.route.route_path)}}}{{#if page.last_updated}},"dateModified":{{{json page.last_updated}}}{{/if}}}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":{{{json page.title}}},"description":{{{json page.description}}},"url":{{{json (concat site.site_url page.route.route_path)}}}{{#if page.git_updated_at}},"dateModified":{{{json page.git_updated_at}}}{{/if}}}</script>
 {{/if}}{{/if}}{{/if}}{{/if}}
 {{/unless}}{{/if}}

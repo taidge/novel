@@ -1,9 +1,9 @@
 use crate::types::{BannerConfig, NavItem, SidebarItem, SocialLink};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
-/// Top-level site configuration, parsed from `novel.toml` or `novel.kdl`.
+/// Top-level site configuration, parsed from `novel.toml`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SiteConfig {
@@ -11,8 +11,8 @@ pub struct SiteConfig {
     pub title: String,
     /// Site description
     pub description: String,
-    /// Documentation root directory (relative to project root)
-    pub root: String,
+    /// Documentation source directory (relative to project root)
+    pub docs_dir: String,
     /// Path to logo image
     pub logo: Option<String>,
     /// Path to favicon
@@ -20,11 +20,9 @@ pub struct SiteConfig {
     /// Default language
     pub lang: String,
     /// Output directory
-    pub out_dir: String,
+    pub output_dir: String,
     /// Base URL path (e.g. "/" or "/docs/")
     pub base: String,
-    /// Remove .html extensions from URLs
-    pub clean_urls: bool,
     /// Site URL for sitemap/RSS (e.g. "https://example.com")
     pub site_url: Option<String>,
     /// Theme configuration
@@ -128,11 +126,9 @@ impl Default for ContentConfig {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TaxonomyConfig {
-    pub name: String,
     /// Permalink template, supports `{slug}`. Default `/<key>/{slug}/`.
     pub permalink: Option<String>,
-    pub paginate_by: Option<usize>,
-    pub feed: bool,
+    pub per_page: Option<usize>,
 }
 
 /// Pagination configuration.
@@ -159,13 +155,12 @@ impl Default for SiteConfig {
         Self {
             title: "Novel".to_string(),
             description: "A static documentation site generator".to_string(),
-            root: "docs".to_string(),
+            docs_dir: "docs".to_string(),
             logo: None,
             icon: None,
             lang: "en".to_string(),
-            out_dir: "dist".to_string(),
+            output_dir: "dist".to_string(),
             base: "/".to_string(),
-            clean_urls: false,
             site_url: None,
             theme: ThemeConfig::default(),
             markdown: MarkdownConfig::default(),
@@ -188,18 +183,13 @@ impl Default for SiteConfig {
 }
 
 impl SiteConfig {
-    /// Load configuration from `novel.toml` or `novel.kdl`.
+    /// Load configuration from `novel.toml`.
     ///
-    /// If both files exist, `novel.kdl` takes precedence.
     /// Falls back to defaults when neither file is present.
     pub fn load(project_root: &Path) -> anyhow::Result<Self> {
-        let kdl_path = project_root.join("novel.kdl");
         let toml_path = project_root.join("novel.toml");
 
-        if kdl_path.exists() {
-            let content = std::fs::read_to_string(&kdl_path)?;
-            Self::from_kdl(&content)
-        } else if toml_path.exists() {
+        if toml_path.exists() {
             let content = std::fs::read_to_string(&toml_path)?;
             Self::from_toml(&content)
         } else {
@@ -213,36 +203,8 @@ impl SiteConfig {
         Ok(config)
     }
 
-    /// Parse from a KDL string.
-    pub fn from_kdl(content: &str) -> anyhow::Result<Self> {
-        let doc = kdl::KdlDocument::parse(content).map_err(|e| {
-            let diags: Vec<String> = e
-                .diagnostics
-                .iter()
-                .map(|d| {
-                    format!(
-                        "  {}{}",
-                        d.message.as_deref().unwrap_or("error"),
-                        d.help
-                            .as_ref()
-                            .map(|h| format!(" ({})", h))
-                            .unwrap_or_default()
-                    )
-                })
-                .collect();
-            anyhow::anyhow!("KDL parse error:\n{}", diags.join("\n"))
-        })?;
-        let json_value = crate::kdl_conv::kdl_document_to_value(&doc);
-        let config: SiteConfig = serde_json::from_value(json_value)?;
-        Ok(config)
-    }
-
     /// Returns the config file path that exists in the project root, if any.
     pub fn config_path(project_root: &Path) -> Option<PathBuf> {
-        let kdl = project_root.join("novel.kdl");
-        if kdl.exists() {
-            return Some(kdl);
-        }
         let toml = project_root.join("novel.toml");
         if toml.exists() {
             return Some(toml);
@@ -252,13 +214,58 @@ impl SiteConfig {
 
     /// Get the absolute path to the docs root
     pub fn docs_root(&self, project_root: &Path) -> PathBuf {
-        project_root.join(&self.root)
+        project_root.join(&self.docs_dir)
+    }
+
+    /// Get the checked absolute path to the docs root.
+    pub fn docs_root_checked(&self, project_root: &Path) -> anyhow::Result<PathBuf> {
+        resolve_project_relative_path(project_root, &self.docs_dir, "docs_dir")
     }
 
     /// Get the absolute path to the output directory
     pub fn output_dir(&self, project_root: &Path) -> PathBuf {
-        project_root.join(&self.out_dir)
+        project_root.join(&self.output_dir)
     }
+
+    /// Get the checked absolute path to the output directory.
+    pub fn output_dir_checked(&self, project_root: &Path) -> anyhow::Result<PathBuf> {
+        resolve_project_relative_path(project_root, &self.output_dir, "output_dir")
+    }
+}
+
+fn resolve_project_relative_path(
+    project_root: &Path,
+    configured: &str,
+    field: &str,
+) -> anyhow::Result<PathBuf> {
+    if configured.trim().is_empty() {
+        anyhow::bail!("{field} must be a non-empty project-relative path");
+    }
+
+    let relative = Path::new(configured);
+    let mut out = project_root.to_path_buf();
+    let mut saw_normal_component = false;
+
+    for component in relative.components() {
+        match component {
+            Component::Normal(part) => {
+                saw_normal_component = true;
+                out.push(part);
+            }
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                anyhow::bail!(
+                    "{field} must be a project-relative path that stays inside the project root: {configured}"
+                );
+            }
+        }
+    }
+
+    if !saw_normal_component {
+        anyhow::bail!("{field} must not point at the project root");
+    }
+
+    Ok(out)
 }
 
 /// Markdown processing configuration
@@ -318,18 +325,18 @@ pub struct ThemeConfig {
     pub social_links: Vec<SocialLink>,
     /// Footer text (HTML allowed)
     pub footer: Option<String>,
-    /// "Edit this page" link pattern, e.g. "https://github.com/user/repo/edit/main/docs/"
-    pub edit_link: Option<String>,
-    /// Custom text for edit link (default: "Edit this page")
-    pub edit_link_text: Option<String>,
-    /// Show last updated time
-    pub last_updated: bool,
-    /// Custom text for last updated (default: "Last updated")
-    pub last_updated_text: Option<String>,
+    /// "Edit this page" URL prefix, e.g. "https://github.com/user/repo/edit/main/docs/"
+    pub edit_url: Option<String>,
+    /// Custom text for edit action (default: "Edit this page")
+    pub edit_text: Option<String>,
+    /// Show Git last-updated time
+    pub show_git_updated_at: bool,
+    /// Custom text for Git last-updated timestamp (default: "Last updated")
+    pub git_updated_text: Option<String>,
     /// Announcement banner
     pub banner: Option<BannerConfig>,
-    /// Source code repository link in navbar
-    pub source_link: Option<String>,
+    /// Source code repository URL in navbar
+    pub source_url: Option<String>,
     /// CSS variable overrides (key = CSS variable name without --, value = CSS value)
     #[serde(default)]
     pub colors: HashMap<String, String>,
@@ -433,8 +440,8 @@ pub struct FeedbackConfig {
     pub positive_text: String,
     pub negative_text: String,
     pub thanks_text: String,
-    pub positive_link: Option<String>,
-    pub negative_link: Option<String>,
+    pub positive_url: Option<String>,
+    pub negative_url: Option<String>,
 }
 
 impl Default for FeedbackConfig {
@@ -445,8 +452,8 @@ impl Default for FeedbackConfig {
             positive_text: "Yes".to_string(),
             negative_text: "No".to_string(),
             thanks_text: "Thanks for the feedback.".to_string(),
-            positive_link: None,
-            negative_link: None,
+            positive_url: None,
+            negative_url: None,
         }
     }
 }
@@ -479,6 +486,40 @@ pub struct LocaleThemeOverrides {
     pub nav: Option<Vec<NavItem>>,
     pub sidebar: Option<HashMap<String, Vec<SidebarItem>>>,
     pub footer: Option<String>,
-    pub edit_link_text: Option<String>,
-    pub last_updated_text: Option<String>,
+    pub edit_text: Option<String>,
+    pub git_updated_text: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SiteConfig;
+    use std::path::Path;
+
+    #[test]
+    fn checked_project_paths_reject_escapes_and_project_root() {
+        let config = SiteConfig {
+            docs_dir: "../docs".to_string(),
+            ..SiteConfig::default()
+        };
+        assert!(config.docs_root_checked(Path::new("project")).is_err());
+
+        let config = SiteConfig {
+            output_dir: ".".to_string(),
+            ..SiteConfig::default()
+        };
+        assert!(config.output_dir_checked(Path::new("project")).is_err());
+    }
+
+    #[test]
+    fn checked_project_paths_accept_plain_relative_paths() {
+        let config = SiteConfig::default();
+        assert_eq!(
+            config.docs_root_checked(Path::new("project")).unwrap(),
+            Path::new("project").join("docs")
+        );
+        assert_eq!(
+            config.output_dir_checked(Path::new("project")).unwrap(),
+            Path::new("project").join("dist")
+        );
+    }
 }

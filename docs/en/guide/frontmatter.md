@@ -1,3 +1,8 @@
+---
+title: Frontmatter
+description: Control page metadata, layout behavior, and navigation with Markdown frontmatter.
+---
+
 # Frontmatter
 
 Every Markdown file can include YAML frontmatter at the top, delimited by `---`. Frontmatter controls page metadata and layout options.
@@ -22,24 +27,23 @@ For blogs and content collections, the following extra fields are recognised. Se
 
 | Field | Type | Description |
 |---|---|---|
-| `date` | `YYYY-MM-DD` | Publish date — used for sorting, archives, feeds, OG `article:published_time` |
-| `updated` | `YYYY-MM-DD` | Last-updated date — OG `article:modified_time` |
+| `published_at` | `YYYY-MM-DD` | Publish date — used for sorting, archives, feeds, OG `article:published_time` |
+| `updated_at` | `YYYY-MM-DD` | Last-updated date — OG `article:modified_time` |
 | `draft` | bool | Excluded from build unless `--drafts` |
 | `weight` | int | Sort key for `sort_by = "weight"` |
 | `summary` | string | Manual summary (overrides the `<!-- more -->` separator) |
-| `tags` | list | Taxonomy entries (`/tags/<term>/`) |
-| `categories` | list | Taxonomy entries (`/categories/<term>/`) |
+| `taxonomies` | map | Taxonomy entries keyed by configured taxonomy name |
 | `series` | string | Series id — generates `/series/<slug>/` |
 | `authors` | list | Author names — OG `article:author` |
-| `expiry_date` | `YYYY-MM-DD` | Excluded after this date unless `--future` |
+| `expires_at` | `YYYY-MM-DD` | Excluded after this date unless `--future` |
 
 ## Page Type
 
-Control the page layout with `page_type`:
+Control the page layout with `layout`:
 
 ```yaml
 ---
-page_type: home   # or doc, custom, 404
+layout: home   # or doc, custom, 404
 ---
 ```
 
@@ -62,18 +66,18 @@ outline: false    # hide the table of contents on this page
 
 ## Hero & Features
 
-Used only with `page_type: home`. See [Home Page](/guide/home-page) for full details.
+Used only with `layout: home`. See [Home Page](/guide/home-page) for full details.
 
 ```yaml
 ---
-page_type: home
+layout: home
 hero:
   name: Project Name
   text: Tagline text
   tagline: Longer description
   actions:
     - text: Get Started
-      link: /guide/
+      url: /guide/
       theme: brand
 features:
   - title: Feature

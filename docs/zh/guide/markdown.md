@@ -1,3 +1,8 @@
+---
+title: Markdown 功能
+description: 使用 Markdown、GFM 扩展、代码围栏、容器、表格和媒体能力。
+---
+
 # Markdown 功能
 
 Novel 支持标准 Markdown,并带有 GitHub Flavored Markdown (GFM) 扩展。

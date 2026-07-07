@@ -1,3 +1,8 @@
+---
+title: AI 上下文文件
+description: 为文档页面生成 llms.txt、完整 AI 上下文和 Markdown 镜像。
+---
+
 # AI 上下文文件
 
 Novel 会在 `novel build` 期间生成适合 AI 工具读取的文档上下文文件。
@@ -8,8 +13,6 @@ CLI 默认启用 `LlmsTxtPlugin` 和 `MarkdownMirrorPlugin`,并写出:
 
 - `llms.txt` — 公共文档页面的精简 Markdown 地图
 - `llms-full.txt` — 单文件形式的完整公共文档内容
-- `.well-known/llms.txt` — 兼容性副本
-- `.well-known/llms-full.txt` — 兼容性副本
 - 每个公共页面对应的 `.md` 镜像,例如 `/guide/getting-started.md`
 
 当用户把你的文档加入 AI 编程工具的上下文,或爬虫需要避开站点外壳、JavaScript 和渲染 HTML 时,这些文件能提供更干净的入口。
@@ -30,7 +33,7 @@ Novel 会排除不应作为公共文档暴露的页面:
 
 ## 自定义文件
 
-如果你想覆盖生成结果,可以在文档目录中放置自己的 `llms.txt`、`llms-full.txt` 或 `.well-known/llms.txt` 文件。静态资源复制发生在插件输出之后,因此你的自定义文件会覆盖自动生成文件。
+如果你想覆盖生成结果,可以在文档目录中放置自己的 `llms.txt` 或 `llms-full.txt` 文件。静态资源复制发生在插件输出之后,因此你的自定义文件会覆盖自动生成文件。
 
 ## Markdown 镜像
 

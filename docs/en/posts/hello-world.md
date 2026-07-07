@@ -1,8 +1,10 @@
 ---
 title: Hello World
-date: 2026-04-01
-tags: [novel, intro]
-categories: [news]
+description: Introduces Novel's general SSG mode through the first example blog post.
+published_at: 2026-04-01
+taxonomies:
+  tags: [novel, intro]
+  categories: [news]
 series: novel-internals
 ---
 

@@ -1,3 +1,8 @@
+---
+title: Library API
+description: Embed Novel in Rust applications and build sites through the library API.
+---
+
 # Library API
 
 Novel can run standalone as a CLI, or be embedded as a library in your own Rust application — a web server, a build tool, or anything else.
@@ -14,7 +19,9 @@ novel-core = { path = "path/to/novel/crates/novel-core" }
 Build a docs site and write it to disk in three lines:
 
 ```rust
-let site = novel_core::Novel::new("docs").build()?;
+use novel_core::{DirNovel, Novel};
+
+let site = DirNovel::new("docs").build()?;
 site.write_to("dist")?;
 ```
 
@@ -23,7 +30,9 @@ site.write_to("dist")?;
 If you have a project with a `novel.toml` config file:
 
 ```rust
-let site = novel_core::Novel::load(".")?.build()?;
+use novel_core::{DirNovel, Novel};
+
+let site = DirNovel::load(".")?.build()?;
 site.write_to_default_output()?;
 ```
 
@@ -32,9 +41,9 @@ site.write_to_default_output()?;
 Customise the site programmatically with the builder pattern:
 
 ```rust
-use novel_core::Novel;
+use novel_core::{DirNovel, Novel};
 
-let site = Novel::new("docs")
+let site = DirNovel::new("docs")
     .title("My API Reference")
     .description("Generated docs for my-crate")
     .base("/docs/")
@@ -42,7 +51,7 @@ let site = Novel::new("docs")
     .with_theme(|t| {
         t.dark_mode = true;
         t.footer = Some("Built with Novel".into());
-        t.last_updated = true;
+        t.show_git_updated_at = true;
     })
     .build()?;
 
@@ -57,7 +66,7 @@ Available builder methods:
 | `description()` | Site description |
 | `base()` | Base URL path (e.g. `"/docs/"`) |
 | `lang()` | Language code (default `"en"`) |
-| `out_dir()` | Output directory name |
+| `output_dir()` | Output directory name |
 | `site_url()` | Full URL for sitemap/RSS |
 | `theme()` | Replace the theme config |
 | `with_theme()` | Mutate theme config via closure |
@@ -71,7 +80,7 @@ Calling `.build()` returns a `BuiltSite` which holds all processed pages and can
 ### Access pages
 
 ```rust
-let site = Novel::new("docs").build()?;
+let site = DirNovel::new("docs").build()?;
 
 // iterate all pages
 for page in site.pages() {
@@ -87,7 +96,7 @@ if let Some(page) = site.page("/guide/intro") {
 ### Render individual pages
 
 ```rust
-let site = Novel::new("docs").build()?;
+let site = DirNovel::new("docs").build()?;
 
 // render one page to a full HTML string
 let page = site.page("/guide/intro").unwrap();
@@ -127,11 +136,12 @@ Here is a minimal example using Axum:
 
 ```rust title="server.rs"
 use axum::{Router, routing::get, extract::Path, response::Html};
+use novel_core::{DirNovel, Novel};
 
 #[tokio::main]
 async fn main() {
     // build once at startup
-    let site = novel_core::Novel::new("docs")
+    let site = DirNovel::new("docs")
         .title("My App Docs")
         .build()
         .expect("failed to build docs");
@@ -170,7 +180,7 @@ novel preview
 == Library (embedded)
 
 ```rust
-let site = Novel::new("docs").build()?;
+let site = DirNovel::new("docs").build()?;
 site.write_to("dist")?;
 
 // or serve directly from memory

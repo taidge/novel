@@ -1,3 +1,8 @@
+---
+title: 快速开始
+description: 安装 Novel、创建项目并构建你的第一个文档站点。
+---
+
 # 快速开始
 
 几分钟内让 Novel 跑起来。
@@ -62,8 +67,8 @@ novel preview
 ```toml title="novel.toml"
 title = "My Docs"
 description = "My documentation site"
-root = "docs"
-out_dir = "dist"
+docs_dir = "docs"
+output_dir = "dist"
 base = "/"
 lang = "zh"
 site_url = "https://example.com"  # 启用 sitemap 与 RSS
@@ -75,14 +80,14 @@ check_dead_links = false    # 构建时校验内部链接
 [theme]
 dark_mode = true
 footer = "Built with Novel"
-last_updated = true         # 显示 git 最后更新时间
-edit_link = "https://github.com/user/repo/edit/main/docs/"
-source_link = "https://github.com/user/repo"
+show_git_updated_at = true         # 显示 git 最后更新时间
+edit_url = "https://github.com/user/repo/edit/main/docs/"
+source_url = "https://github.com/user/repo"
 
 # 公告横幅
 [theme.banner]
 text = "Novel v0.2 发布!"
-link = "/guide/getting-started"
+url = "/guide/getting-started"
 dismissible = true
 ```
 

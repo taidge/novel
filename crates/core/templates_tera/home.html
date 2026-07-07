@@ -21,7 +21,7 @@
         {% if page.frontmatter.hero.actions %}
         <div class="hero-actions">
             {% for action in page.frontmatter.hero.actions %}
-            <a href="{{ action.link }}" class="hero-action {{ action.theme | default(value="brand") }}">{{ action.text }}</a>
+            <a href="{{ action.url }}" class="hero-action {{ action.theme | default(value="brand") }}">{{ action.text }}</a>
             {% endfor %}
         </div>
         {% endif %}
@@ -32,7 +32,7 @@
     <section class="features">
         <div class="features-grid">
             {% for feature in page.frontmatter.features %}
-            <div class="feature-card"{% if feature.link %} onclick="window.location='{{ feature.link }}'" style="cursor:pointer"{% endif %}>
+            <div class="feature-card"{% if feature.url %} onclick="window.location='{{ feature.url }}'" style="cursor:pointer"{% endif %}>
                 {% if feature.icon %}
                 <div class="feature-icon">{{ feature.icon }}</div>
                 {% endif %}

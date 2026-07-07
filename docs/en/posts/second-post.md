@@ -1,8 +1,10 @@
 ---
 title: Second Post
-date: 2026-04-05
-tags: [rust, novel]
-categories: [tech]
+description: Demonstrates date sorting and summaries in a Novel blog collection.
+published_at: 2026-04-05
+taxonomies:
+  tags: [rust, novel]
+  categories: [tech]
 series: novel-internals
 ---
 

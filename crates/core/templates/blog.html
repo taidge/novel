@@ -17,8 +17,8 @@
         <article class="markdown-body">
             <header class="blog-header">
                 <h1>{{ page.title }}</h1>
-                {% if page.last_updated %}
-                <time class="blog-date">{{ page.last_updated }}</time>
+                {% if page.git_updated_at %}
+                <time class="blog-date">{{ page.git_updated_at }}</time>
                 {% endif %}
                 {% if page.description %}
                 <p class="blog-description">{{ page.description }}</p>
@@ -30,7 +30,7 @@
         {% if page.prev_page or page.next_page %}
         <nav class="prev-next">
             {% if page.prev_page %}
-            <a href="{{ page.prev_page.link }}" class="prev-next-link prev">
+            <a href="{{ page.prev_page.url }}" class="prev-next-link prev">
                 <span class="prev-next-label">Previous</span>
                 <span class="prev-next-title">{{ page.prev_page.title }}</span>
             </a>
@@ -38,7 +38,7 @@
             <span></span>
             {% endif %}
             {% if page.next_page %}
-            <a href="{{ page.next_page.link }}" class="prev-next-link next">
+            <a href="{{ page.next_page.url }}" class="prev-next-link next">
                 <span class="prev-next-label">Next</span>
                 <span class="prev-next-title">{{ page.next_page.title }}</span>
             </a>

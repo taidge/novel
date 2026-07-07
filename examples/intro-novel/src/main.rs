@@ -59,7 +59,7 @@ fn main() -> Result<()> {
         .with_theme(|t| {
             t.dark_mode = true;
             t.footer = Some("Built with Novel — library example".into());
-            t.last_updated = true;
+            t.show_git_updated_at = true;
         })
         .plugin(SitemapPlugin)
         .plugin(FeedPlugin)

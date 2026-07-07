@@ -1,7 +1,7 @@
 title = "Novel"
 description = "A fast static documentation site generator built with Rust"
-root = "docs"
-out_dir = "dist"
+docs_dir = "docs"
+output_dir = "dist"
 base = "/"
 lang = "en"
 
@@ -10,10 +10,8 @@ dark_mode = true
 footer = "Built with Novel | Apache 2.0 License"
 
 [taxonomies.tags]
-name = "Tags"
 
 [taxonomies.categories]
-name = "Categories"
 
 [i18n]
 default_locale = "en"

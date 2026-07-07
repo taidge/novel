@@ -1,7 +1,9 @@
 ---
 title: Third Post
-date: 2026-04-06
-tags: [rust]
+description: Adds another example post to verify collection pagination behavior.
+published_at: 2026-04-06
+taxonomies:
+  tags: [rust]
 ---
 
-A third post to verify pagination kicks in (paginate_by = 2).
+A third post to verify pagination kicks in (per_page = 2).

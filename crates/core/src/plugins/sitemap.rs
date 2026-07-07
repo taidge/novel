@@ -1,5 +1,4 @@
 use crate::plugin::{BuiltSiteView, Plugin};
-use novel_shared::PageType;
 
 pub struct SitemapPlugin;
 
@@ -31,18 +30,14 @@ pub fn generate_sitemap_xml(site: &BuiltSiteView) -> Option<String> {
             continue;
         }
         let route = &page.route.route_path;
-        let loc = if route == "/" {
-            format!("{}/", base_url)
-        } else {
-            format!("{}{}", base_url, route)
-        };
+        let loc = crate::util::join_site_url(base_url, &site.config.base, route);
 
         xml.push_str("  <url>\n");
-        xml.push_str(&format!("    <loc>{}</loc>\n", loc));
-        if let Some(ref date) = page.last_updated {
+        xml.push_str(&format!("    <loc>{}</loc>\n", xml_escape(&loc)));
+        if let Some(ref date) = page.git_updated_at {
             xml.push_str(&format!("    <lastmod>{}</lastmod>\n", date));
         }
-        let priority = if matches!(page.frontmatter.page_type, Some(PageType::Home)) {
+        let priority = if page.frontmatter.layout.as_deref() == Some("home") {
             "1.0"
         } else {
             "0.7"
@@ -53,4 +48,12 @@ pub fn generate_sitemap_xml(site: &BuiltSiteView) -> Option<String> {
 
     xml.push_str("</urlset>\n");
     Some(xml)
+}
+
+fn xml_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }

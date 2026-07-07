@@ -8,27 +8,26 @@
     <title>{% block title %}{{ site.title }}{% endblock %}</title>
     <meta name="description" content="{% block description %}{{ site.description }}{% endblock %}">
     {% if page and page.frontmatter.noindex %}<meta name="robots" content="noindex, nofollow">{% endif %}
-    {% if site.icon %}<link rel="icon" href="{{ site.icon }}">{% endif %}
+    {% if site.icon %}<link rel="icon" href="{{ route_url(site.icon) }}">{% endif %}
     {% if site.pwa.enabled %}
-    <link rel="manifest" href="{{ site.base }}manifest.webmanifest">
+    <link rel="manifest" href="{{ route_url('manifest.webmanifest') }}">
     <meta name="theme-color" content="{{ site.pwa.theme_color }}">
     {% endif %}
-    <link rel="stylesheet" href="{{ site.base }}assets/{{ asset_css | default('style.css') }}">
+    <link rel="stylesheet" href="{{ asset_url('assets/' ~ (asset_css | default('style.css'))) }}">
     {% if theme_css_overrides %}<style>:root, [data-theme="light"] { {{ theme_css_overrides | safe }} }</style>{% endif %}
     {% if custom_css_content %}<style>{{ custom_css_content | safe }}</style>{% endif %}
-    <script src="{{ site.base }}assets/{{ asset_js | default('main.js') }}" defer></script>
-    {% if site.site_url %}<link rel="alternate" type="application/atom+xml" title="{{ site.title }}" href="{{ site.base }}feed.xml">{% endif %}
-    {% if site.site_url %}<link rel="sitemap" type="application/xml" title="Sitemap" href="{{ site.base }}sitemap.xml">{% endif %}
+    <script src="{{ asset_url('assets/' ~ (asset_js | default('main.js'))) }}" defer></script>
+    {% if site.site_url %}<link rel="alternate" type="application/atom+xml" title="{{ site.title }}" href="{{ route_url('feed.xml') }}">{% endif %}
+    {% if site.site_url %}<link rel="sitemap" type="application/xml" title="Sitemap" href="{{ route_url('sitemap.xml') }}">{% endif %}
     {# hreflang alternate links — emitted when this page has translations
        (i18n mode with the same relative_path in multiple locales). T-UI-4 #}
     {% if page and page.translations %}
-    {% set abs_base = site.site_url or '' %}
     {% for t in page.translations %}
-    <link rel="alternate" hreflang="{{ t[0] }}" href="{{ abs_base }}{{ t[1] }}">
+    <link rel="alternate" hreflang="{{ t[0] }}" href="{{ absolute_url(t[1]) }}">
     {% endfor %}
     {% if site.i18n and site.i18n.default_locale %}
     {% for t in page.translations %}{% if t[0] == site.i18n.default_locale %}
-    <link rel="alternate" hreflang="x-default" href="{{ abs_base }}{{ t[1] }}">
+    <link rel="alternate" hreflang="x-default" href="{{ absolute_url(t[1]) }}">
     {% endif %}{% endfor %}
     {% endif %}
     {% endif %}
@@ -44,12 +43,12 @@
     <meta property="og:title" content="{{ page.title }}">
     <meta property="og:description" content="{{ page.description }}">
     <meta property="og:type" content="article">
-    <meta property="og:url" content="{{ site.site_url }}{{ page.route.route_path }}">
+    <meta property="og:url" content="{{ absolute_url(page.route.route_path) }}">
     {% if page.frontmatter.og_image %}<meta property="og:image" content="{{ page.frontmatter.og_image }}">{% endif %}
-    {% if page.date %}<meta property="article:published_time" content="{{ page.date }}">{% endif %}
-    {% if page.frontmatter.updated %}<meta property="article:modified_time" content="{{ page.frontmatter.updated }}">{% endif %}
+    {% if page.published_at %}<meta property="article:published_time" content="{{ page.published_at }}">{% endif %}
+    {% if page.frontmatter.updated_at %}<meta property="article:modified_time" content="{{ page.frontmatter.updated_at }}">{% endif %}
     {% for author in page.frontmatter.authors %}<meta property="article:author" content="{{ author }}">{% endfor %}
-    {% for tag in page.frontmatter.tags %}<meta property="article:tag" content="{{ tag }}">{% endfor %}
+    {% if page.frontmatter.taxonomies.tags %}{% for tag in page.frontmatter.taxonomies.tags %}<meta property="article:tag" content="{{ tag }}">{% endfor %}{% endif %}
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ page.title }}">
     <meta name="twitter:description" content="{{ page.description }}">
@@ -58,18 +57,18 @@
     {% if page.frontmatter.canonical %}
     <link rel="canonical" href="{{ page.frontmatter.canonical }}">
     {% elif site.site_url %}
-    <link rel="canonical" href="{{ site.site_url }}{{ page.route.route_path }}">
+    <link rel="canonical" href="{{ absolute_url(page.route.route_path) }}">
     {% endif %}
     {% endif %}
     {% endblock %}
     {% block json_ld %}
     {% if site.site_url and not (page and page.frontmatter.noindex) %}
-    {% if page and (page.frontmatter.page_type == "home" or page.frontmatter.layout == "home") %}
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":{{ site.title | tojson }},"description":{{ site.description | tojson }},"url":{{ site.site_url | tojson }}}</script>
-    {% elif page and (page.frontmatter.layout == "blog" or page.collection or page.date) %}
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":{{ page.title | tojson }},"description":{{ page.description | tojson }},"url":{{ (site.site_url ~ page.route.route_path) | tojson }}{% if page.date %},"datePublished":{{ page.date | tojson }}{% endif %}{% if page.frontmatter.updated %},"dateModified":{{ page.frontmatter.updated | tojson }}{% elif page.last_updated %},"dateModified":{{ page.last_updated | tojson }}{% endif %}{% if page.frontmatter.og_image %},"image":{{ page.frontmatter.og_image | tojson }}{% endif %}{% if page.frontmatter.authors %},"author":[{% for a in page.frontmatter.authors %}{"@type":"Person","name":{{ a | tojson }}}{% if not loop.last %},{% endif %}{% endfor %}]{% endif %}}</script>
+    {% if page and page.frontmatter.layout == "home" %}
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":{{ site.title | tojson }},"description":{{ site.description | tojson }},"url":{{ absolute_url('/') | tojson }}}</script>
+    {% elif page and (page.frontmatter.layout == "blog" or page.collection or page.published_at) %}
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":{{ page.title | tojson }},"description":{{ page.description | tojson }},"url":{{ absolute_url(page.route.route_path) | tojson }}{% if page.published_at %},"datePublished":{{ page.published_at | tojson }}{% endif %}{% if page.frontmatter.updated_at %},"dateModified":{{ page.frontmatter.updated_at | tojson }}{% elif page.git_updated_at %},"dateModified":{{ page.git_updated_at | tojson }}{% endif %}{% if page.frontmatter.og_image %},"image":{{ page.frontmatter.og_image | tojson }}{% endif %}{% if page.frontmatter.authors %},"author":[{% for a in page.frontmatter.authors %}{"@type":"Person","name":{{ a | tojson }}}{% if not loop.last %},{% endif %}{% endfor %}]{% endif %}}</script>
     {% elif page %}
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":{{ page.title | tojson }},"description":{{ page.description | tojson }},"url":{{ (site.site_url ~ page.route.route_path) | tojson }}{% if page.last_updated %},"dateModified":{{ page.last_updated | tojson }}{% endif %}}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":{{ page.title | tojson }},"description":{{ page.description | tojson }},"url":{{ absolute_url(page.route.route_path) | tojson }}{% if page.git_updated_at %},"dateModified":{{ page.git_updated_at | tojson }}{% endif %}}</script>
     {% endif %}
     {% endif %}
     {% endblock %}
@@ -82,7 +81,7 @@
     {% if site.theme.banner %}
     <div class="banner" id="site-banner">
         <div class="banner-inner">
-            {% if site.theme.banner.link %}<a href="{{ site.theme.banner.link }}">{{ site.theme.banner.text }}</a>{% else %}{{ site.theme.banner.text }}{% endif %}
+            {% if site.theme.banner.url %}<a href="{{ route_url(site.theme.banner.url) }}">{{ site.theme.banner.text }}</a>{% else %}{{ site.theme.banner.text }}{% endif %}
         </div>
         {% if site.theme.banner.dismissible %}
         <button class="banner-close" onclick="dismissBanner()" aria-label="Dismiss">&times;</button>
@@ -95,31 +94,31 @@
             <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar" aria-expanded="false">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M3 5h14a1 1 0 010 2H3a1 1 0 010-2zm0 4h14a1 1 0 010 2H3a1 1 0 010-2zm0 4h14a1 1 0 010 2H3a1 1 0 010-2z"/></svg>
             </button>
-            <a class="navbar-brand" href="{{ site.base }}">
-                {% if site.logo %}<img src="{{ site.logo }}" alt="{{ site.title }}" class="navbar-logo">{% endif %}
+            <a class="navbar-brand" href="{{ route_url('/') }}">
+                {% if site.logo %}<img src="{{ route_url(site.logo) }}" alt="{{ site.title }}" class="navbar-logo">{% endif %}
                 <span class="navbar-title">{{ site.title }}</span>
             </a>
             <div class="navbar-links">
                 {% for item in nav %}
-                <a href="{{ item.link }}" class="nav-link">{{ item.text }}</a>
+                <a href="{{ route_url(item.url) }}" class="nav-link">{{ item.text }}</a>
                 {% endfor %}
             </div>
             <div class="navbar-actions">
                 {% if page and page.version_links %}
                 <select class="version-select" aria-label="Documentation version" onchange="if(this.value){window.location.href=this.value}">
                     {% for version in page.version_links %}
-                    <option value="{{ version.link }}"{% if version.current %} selected{% endif %}>{{ version.label }}</option>
+                    <option value="{{ route_url(version.url) }}"{% if version.current %} selected{% endif %}>{{ version.label }}</option>
                     {% endfor %}
                 </select>
                 {% endif %}
-                {% if site.theme.source_link %}
-                <a href="{{ site.theme.source_link }}" class="social-link" target="_blank" rel="noopener" aria-label="Source code">
+                {% if site.theme.source_url %}
+                <a href="{{ route_url(site.theme.source_url) }}" class="social-link" target="_blank" rel="noopener" aria-label="Source code">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
                 </a>
                 {% endif %}
                 {% if site.theme.social_links %}
                 {% for social in site.theme.social_links %}
-                <a href="{{ social.link }}" class="social-link" target="_blank" rel="noopener">{{ social.icon }}</a>
+                <a href="{{ route_url(social.url) }}" class="social-link" target="_blank" rel="noopener">{{ social.icon }}</a>
                 {% endfor %}
                 {% endif %}
                 {% if site.theme.dark_mode %}
@@ -161,7 +160,7 @@
     <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
-            navigator.serviceWorker.register('{{ site.base }}service-worker.js', { scope: '{{ site.base }}' }).catch(function(err) {
+            navigator.serviceWorker.register({{ route_url('service-worker.js') | tojson }}, { scope: {{ route_url('/') | tojson }} }).catch(function(err) {
                 console.warn('Service worker registration failed:', err);
             });
         });

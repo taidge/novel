@@ -1,3 +1,8 @@
+---
+title: File Embedding
+description: Embed source files and selected line ranges directly in your documentation.
+---
+
 # File Embedding
 
 One of Novel's key features is the ability to embed external source files directly into your documentation.

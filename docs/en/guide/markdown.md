@@ -1,3 +1,8 @@
+---
+title: Markdown Features
+description: Use Markdown, GFM extensions, code fences, containers, tables, and media features.
+---
+
 # Markdown Features
 
 Novel supports standard Markdown with GitHub Flavored Markdown (GFM) extensions.

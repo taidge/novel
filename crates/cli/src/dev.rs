@@ -114,8 +114,8 @@ pub async fn run_dev_server(project_root: &Path, host: &str, port: u16) -> Resul
     site.write_to_default_output()?;
 
     let config = SiteConfig::load(&project_root)?;
-    let output_dir = config.output_dir(&project_root);
-    let docs_root = config.docs_root(&project_root);
+    let output_dir = config.output_dir_checked(&project_root)?;
+    let docs_root = config.docs_root_checked(&project_root)?;
 
     // Broadcast channel for signaling rebuilds
     let (reload_tx, _) = broadcast::channel::<()>(16);
@@ -132,8 +132,7 @@ pub async fn run_dev_server(project_root: &Path, host: &str, port: u16) -> Resul
         };
         for path in event.paths {
             let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-            let should_rebuild =
-                matches!(ext, "md" | "json" | "toml" | "kdl" | "typ" | "yaml" | "yml");
+            let should_rebuild = matches!(ext, "md" | "json" | "toml" | "typ" | "yaml" | "yml");
             if should_rebuild {
                 let _ = event_tx.send(path);
             }
@@ -142,7 +141,7 @@ pub async fn run_dev_server(project_root: &Path, host: &str, port: u16) -> Resul
 
     watcher.watch(&docs_root, RecursiveMode::Recursive)?;
 
-    // Watch config file (KDL or TOML)
+    // Watch config file
     if let Some(config_path) = SiteConfig::config_path(&project_root) {
         watcher.watch(&config_path, RecursiveMode::NonRecursive)?;
     }

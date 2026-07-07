@@ -1,13 +1,12 @@
 use novel_shared::config::SiteConfig;
-use novel_shared::{NavItem, PageData, PageLink, PageType, SidebarItem};
+use novel_shared::{NavItem, PageData, PageLink, SidebarItem};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::process::Command;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use tracing::info;
 
-use crate::error::NovelResult;
+use crate::error::{NovelError, NovelResult};
 use crate::markdown::{MarkdownProcessor, collect_internal_links};
 use crate::plugin::{BuiltSiteView, Plugin};
 use crate::routing::scan_routes;
@@ -50,6 +49,10 @@ pub(crate) fn build_pages(
     let md_processor = MarkdownProcessor::new(project_root)
         .with_source_root(source_root)
         .with_line_numbers(config.markdown.show_line_numbers)
+        .with_wrap_code(config.markdown.default_wrap_code)
+        .with_summary_separator(config.content.summary_separator.clone())
+        .with_math(config.markdown.math)
+        .with_mermaid(config.markdown.mermaid)
         .with_syntax_theme(syntax_theme)
         .with_custom_directives(custom_directives);
 
@@ -80,36 +83,36 @@ pub(crate) fn build_pages(
     let typst_available =
         has_typst_routes && typst_processor.is_some() && TypstProcessor::is_available();
 
-    let read_failures = AtomicUsize::new(0);
-    let process_failures = AtomicUsize::new(0);
-
     // Read all file contents sequentially (I/O bound)
-    let route_contents: Vec<_> = routes
-        .into_iter()
-        .filter_map(|route| {
-            // Skip .typ files when typst is not available
-            if route.relative_path.ends_with(".typ") && !typst_available {
-                return None;
-            }
-            match source.read_to_string(&route.relative_path) {
-                Ok(content) => Some((route, content)),
-                Err(e) => {
-                    tracing::warn!("Failed to read {}: {}", route.relative_path, e);
-                    read_failures.fetch_add(1, Ordering::Relaxed);
-                    None
-                }
-            }
-        })
-        .collect();
+    let mut route_contents = Vec::new();
+    let mut read_failures = Vec::new();
+    for route in routes {
+        // Skip .typ files when typst is not available
+        if route.relative_path.ends_with(".typ") && !typst_available {
+            continue;
+        }
+        match source.read_to_string(&route.relative_path) {
+            Ok(content) => route_contents.push((route, content)),
+            Err(e) => read_failures.push(format!("{}: {}", route.relative_path, e)),
+        }
+    }
+
+    if !read_failures.is_empty() {
+        return Err(NovelError::Build(format!(
+            "Failed to read {} page(s): {}",
+            read_failures.len(),
+            read_failures.join("; ")
+        )));
+    }
 
     info!("Processing {} pages in parallel...", route_contents.len());
 
     // Process all pages in parallel (CPU bound). `into_par_iter` consumes
     // `route_contents` so each `(route, content)` can be moved into the
     // closure without extra clones (T-PERF-2).
-    let mut pages: Vec<PageData> = route_contents
+    let processed_pages: Vec<Result<PageData, String>> = route_contents
         .into_par_iter()
-        .filter_map(|(route, content)| {
+        .map(|(route, content)| {
             // `relative_path` is kept as an owned String so it remains
             // usable for error reporting after `route` is moved into the
             // per-branch calls below.
@@ -151,28 +154,28 @@ pub(crate) fn build_pages(
                         p.on_page_built(&page);
                     }
 
-                    Some(page)
+                    Ok(page)
                 }
-                Err(e) => {
-                    tracing::warn!("Failed to process {}: {}", relative_path, e);
-                    process_failures.fetch_add(1, Ordering::Relaxed);
-                    None
-                }
+                Err(e) => Err(format!("{}: {}", relative_path, e)),
             }
         })
         .collect();
 
-    let rf = read_failures.load(Ordering::Relaxed);
-    let pf = process_failures.load(Ordering::Relaxed);
-    if rf > 0 || pf > 0 {
-        tracing::warn!(
-            "Built {} page(s); skipped {} (read failure: {}, processing failure: {}). \
-             Run with RUST_LOG=warn to see per-file details.",
-            pages.len(),
-            rf + pf,
-            rf,
-            pf
-        );
+    let mut pages = Vec::with_capacity(processed_pages.len());
+    let mut process_failures = Vec::new();
+    for page in processed_pages {
+        match page {
+            Ok(page) => pages.push(page),
+            Err(err) => process_failures.push(err),
+        }
+    }
+
+    if !process_failures.is_empty() {
+        return Err(NovelError::Build(format!(
+            "Failed to process {} page(s): {}",
+            process_failures.len(),
+            process_failures.join("; ")
+        )));
     }
 
     // Sort by route path for deterministic ordering
@@ -264,12 +267,7 @@ fn set_prev_next_links(pages: &mut [PageData]) {
     let doc_indices: Vec<usize> = pages
         .iter()
         .enumerate()
-        .filter(|(_, p)| {
-            !matches!(
-                p.frontmatter.page_type,
-                Some(PageType::Home) | Some(PageType::NotFound)
-            )
-        })
+        .filter(|(_, p)| !matches!(p.frontmatter.layout.as_deref(), Some("home") | Some("404")))
         .map(|(i, _)| i)
         .collect();
 
@@ -278,14 +276,14 @@ fn set_prev_next_links(pages: &mut [PageData]) {
             let prev_idx = doc_indices[pos - 1];
             pages[idx].prev_page = Some(PageLink {
                 title: pages[prev_idx].title.clone(),
-                link: pages[prev_idx].route.route_path.clone(),
+                url: pages[prev_idx].route.route_path.clone(),
             });
         }
         if pos + 1 < doc_indices.len() {
             let next_idx = doc_indices[pos + 1];
             pages[idx].next_page = Some(PageLink {
                 title: pages[next_idx].title.clone(),
-                link: pages[next_idx].route.route_path.clone(),
+                url: pages[next_idx].route.route_path.clone(),
             });
         }
     }
@@ -335,7 +333,7 @@ fn compute_breadcrumbs(pages: &mut [PageData]) {
 
         let mut crumbs = vec![PageLink {
             title: "Home".to_string(),
-            link: "/".to_string(),
+            url: "/".to_string(),
         }];
 
         let trimmed = route.trim_matches('/');
@@ -354,13 +352,13 @@ fn compute_breadcrumbs(pages: &mut [PageData]) {
                     .unwrap_or_else(|| title_case(seg));
                 crumbs.push(PageLink {
                     title,
-                    link: dir_route,
+                    url: dir_route,
                 });
             } else {
                 // Current page (no link needed, but included for display)
                 crumbs.push(PageLink {
                     title: page.title.clone(),
-                    link: route.clone(),
+                    url: route.clone(),
                 });
             }
         }
@@ -383,7 +381,7 @@ fn title_case(s: &str) -> String {
         .join(" ")
 }
 
-pub(crate) fn get_git_last_updated(file_path: &Path) -> Option<String> {
+pub(crate) fn get_git_updated_at(file_path: &Path) -> Option<String> {
     // `%ad` = author date; `--date=short` formats it as YYYY-MM-DD.
     // (The previous `%Y-%m-%d` was a strftime format, not a git placeholder —
     // git would pass `%Y`, `%m`, `%d` through literally, producing garbage.)

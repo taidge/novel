@@ -1,3 +1,8 @@
+---
+title: Versioning
+description: Build and publish multiple frozen documentation versions from one Novel project.
+---
+
 # Versioning
 
 Novel can build frozen documentation versions from subdirectories under your docs root.

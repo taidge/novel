@@ -38,9 +38,6 @@ enum Commands {
     },
     /// Build the static site for production
     Build {
-        /// Force full rebuild (bypass cache)
-        #[arg(long)]
-        force: bool,
         /// Include draft pages
         #[arg(long)]
         drafts: bool,
@@ -92,11 +89,7 @@ async fn main() -> Result<()> {
         Commands::Dev { port, host } => {
             dev::run_dev_server(&project_root, &host, port).await?;
         }
-        Commands::Build {
-            force: _,
-            drafts,
-            future,
-        } => {
+        Commands::Build { drafts, future } => {
             info!("Building site...");
             let mut novel = novel_core::DirNovel::load(&project_root)?;
             {
@@ -124,7 +117,7 @@ async fn main() -> Result<()> {
         Commands::Preview { port, host } => {
             info!("Previewing built site on http://{}:{}", host, port);
             let config = novel_shared::SiteConfig::load(&project_root)?;
-            let output_dir = config.output_dir(&project_root);
+            let output_dir = config.output_dir_checked(&project_root)?;
             dev::serve_static(&output_dir, &host, port).await?;
         }
         Commands::Init { name } => {

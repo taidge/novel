@@ -9,11 +9,11 @@ Novel turns a folder of Markdown files into a polished documentation website in 
 ## Features
 
 - **Blazing fast** — Built entirely in Rust. Builds complete in milliseconds, not seconds.
-- **Embeddable** — Use as a CLI or embed as a library: `Novel::new("docs").build()`.
+- **Embeddable** — Use as a CLI or embed as a library: `DirNovel::new("docs").build()`.
 - **Markdown first** — GFM, syntax highlighting, tabs, steps, badges, and container directives out of the box.
 - **File embedding** — Embed source code from external files with line-range support so docs stay in sync with code.
 - **Beautiful themes** — Dark mode, responsive layout, search, prev/next navigation, and image zoom built in.
-- **SEO & AI ready** — Sitemap, RSS/JSON feeds, `llms.txt`, edit links, last-updated timestamps, and custom head tags.
+- **SEO & AI ready** — Sitemap, RSS/JSON feeds, `llms.txt`, edit links, Git updated timestamps, and custom head tags.
 - **Operational docs features** — Versioned docs, per-page Markdown mirrors, optional PWA output, and static page feedback.
 
 ## Installation
@@ -62,8 +62,8 @@ Create a `novel.toml` in your project root:
 ```toml
 title = "My Docs"
 description = "My documentation site"
-root = "docs"
-out_dir = "dist"
+docs_dir = "docs"
+output_dir = "dist"
 base = "/"
 lang = "en"
 site_url = "https://example.com"  # enables sitemap & RSS
@@ -75,9 +75,9 @@ check_dead_links = false
 [theme]
 dark_mode = true
 footer = "Built with Novel"
-last_updated = true
-edit_link = "https://github.com/user/repo/edit/main/docs/"
-source_link = "https://github.com/user/repo"
+show_git_updated_at = true
+edit_url = "https://github.com/user/repo/edit/main/docs/"
+source_url = "https://github.com/user/repo"
 ```
 
 Most fields have sensible defaults — you only need to configure what you want to customize.
@@ -94,16 +94,18 @@ novel-core = { path = "path/to/novel/crates/core" }
 Build a site and write it to disk in three lines:
 
 ```rust
-let site = novel_core::Novel::new("docs").build()?;
+use novel_core::{DirNovel, Novel};
+
+let site = DirNovel::new("docs").build()?;
 site.write_to("dist")?;
 ```
 
 Or customize it with the builder API:
 
 ```rust
-use novel_core::Novel;
+use novel_core::{DirNovel, Novel};
 
-let site = Novel::new("docs")
+let site = DirNovel::new("docs")
     .title("My API Reference")
     .description("Generated docs for my-crate")
     .base("/docs/")
@@ -111,7 +113,7 @@ let site = Novel::new("docs")
     .with_theme(|t| {
         t.dark_mode = true;
         t.footer = Some("Built with Novel".into());
-        t.last_updated = true;
+        t.show_git_updated_at = true;
     })
     .build()?;
 
@@ -123,7 +125,9 @@ site.write_to("./output")?;
 The `BuiltSite` returned by `.build()` can render pages on demand, which makes it easy to serve docs directly from an Axum (or any other) server:
 
 ```rust
-let site = novel_core::Novel::new("docs").build()?;
+use novel_core::{DirNovel, Novel};
+
+let site = DirNovel::new("docs").build()?;
 let page = site.page("/guide/intro").unwrap();
 let html = site.render_page(page)?;
 ```

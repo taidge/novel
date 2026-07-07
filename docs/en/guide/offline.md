@@ -1,3 +1,8 @@
+---
+title: Offline / PWA
+description: Generate Progressive Web App assets so a Novel site can work offline.
+---
+
 # Offline / PWA
 
 Novel can generate a small Progressive Web App shell for offline reading.

@@ -1,3 +1,8 @@
+---
+title: 主题与外观
+description: 通过主题选项、CSS 变量、自定义 CSS 和模板覆盖定制 Novel。
+---
+
 # 主题与外观
 
 Novel 自带一个简洁、响应式的默认主题(内置深色模式),并且在设计上允许你按需进行任意程度的定制 —— 小到调整一个颜色变量,大到发布一个完整的可复用**主题包**。
@@ -21,14 +26,14 @@ Novel 自带一个简洁、响应式的默认主题(内置深色模式),并且�
 [theme]
 dark_mode      = true
 footer         = "Copyright 2025 My Project | Built with Novel"
-edit_link      = "https://github.com/user/repo/edit/main/docs/"
-edit_link_text = "Edit this page on GitHub"
-last_updated   = true
-source_link    = "https://github.com/user/repo"
+edit_url      = "https://github.com/user/repo/edit/main/docs/"
+edit_text = "Edit this page on GitHub"
+git_updated_at   = true
+source_url    = "https://github.com/user/repo"
 
 [theme.banner]
 text        = "We just released v2.0!"
-link        = "/guide/changelog"
+url = "/guide/changelog"
 dismissible = true
 ```
 
@@ -202,13 +207,13 @@ my-site/
 | 变量 | 类型 | 描述 |
 |------|------|------|
 | `site` | object | 完整的 `SiteConfig`(`site.title`、`site.base`、`site.theme.*`、`site.markdown.*` 等) |
-| `page` | object 或 null | 当前页面(`page.title`、`page.content_html`、`page.frontmatter`、`page.toc`、`page.last_updated`、`page.prev_page`、`page.next_page`、`page.breadcrumbs` 等) |
+| `page` | object 或 null | 当前页面(`page.title`、`page.content_html`、`page.frontmatter`、`page.toc`、`page.git_updated_at`、`page.prev_page`、`page.next_page`、`page.breadcrumbs` 等) |
 | `nav` | array | 顶部导航项 |
 | `sidebar` | array | 当前分区的侧边栏项 |
 | `toc` | array | 当前页面的目录项 |
 | `edit_url` | string 或 null | 计算得到的"编辑此页"URL |
-| `edit_link_text` | string | 编辑链接的文字 |
-| `last_updated_text` | string | 最后更新时间戳的文字 |
+| `edit_text` | string | 编辑链接的文字 |
+| `git_updated_text` | string | 最后更新时间戳的文字 |
 | `theme_css_overrides` | string 或 null | 渲染后的 `[theme.colors]` CSS 字符串 |
 | `custom_css_content` | string 或 null | 内联的 `theme.custom_css` 内容 |
 | `asset_css` / `asset_js` | string | 启用 `asset_fingerprint` 时带哈希的资源文件名 |
@@ -268,7 +273,7 @@ template_engine = "tera"        # 或 "handlebars" 或 "minijinja"(默认)
 
 ## 7. 自定义资源(CSS / JS)
 
-默认的样式表和 JS 被编译到二进制中,名为 `style.css` 和 `main.js`,并在每次构建时写入 `<out_dir>/assets/`。你有三种方式来附加额外资源:
+默认的样式表和 JS 被编译到二进制中,名为 `style.css` 和 `main.js`,并在每次构建时写入 `<output_dir>/assets/`。你有三种方式来附加额外资源:
 
 1. **自定义 CSS**(最简单,内联到每个页面) —— 使用 `theme.custom_css`。
 2. **静态文件** —— 将文件放到 `docs/`(或 `root` 指向的位置)之下,并从模板中引用它们。它们会被原样复制。参见[静态资源](./static-assets.md)。

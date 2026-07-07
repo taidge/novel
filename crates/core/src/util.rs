@@ -54,6 +54,61 @@ pub(crate) fn fnv1a(data: &[u8]) -> u64 {
     hash
 }
 
+pub(crate) fn is_special_url(url: &str) -> bool {
+    let trimmed = url.trim();
+    trimmed.is_empty()
+        || trimmed.starts_with('#')
+        || trimmed.starts_with("//")
+        || trimmed.starts_with("http://")
+        || trimmed.starts_with("https://")
+        || trimmed.starts_with("mailto:")
+        || trimmed.starts_with("tel:")
+}
+
+pub(crate) fn join_base_path(base: &str, path: &str) -> String {
+    let path = path.trim();
+    if is_special_url(path) {
+        return path.to_string();
+    }
+
+    let mut normalized_base = base.trim().trim_end_matches('/').to_string();
+    if normalized_base == "/" {
+        normalized_base.clear();
+    }
+    if !normalized_base.is_empty() && !normalized_base.starts_with('/') {
+        normalized_base.insert(0, '/');
+    }
+
+    let normalized_path = if path == "/" {
+        "/".to_string()
+    } else {
+        format!("/{}", path.trim_start_matches('/'))
+    };
+
+    if normalized_base.is_empty() {
+        normalized_path
+    } else if normalized_path == "/" {
+        format!("{}/", normalized_base)
+    } else {
+        format!("{}{}", normalized_base, normalized_path)
+    }
+}
+
+pub(crate) fn join_site_url(site_url: &str, base: &str, path: &str) -> String {
+    let site = site_url.trim().trim_end_matches('/');
+    if site.is_empty() {
+        return join_base_path(base, path);
+    }
+
+    let base_path = join_base_path(base, "/");
+    let normalized_base = base_path.trim_end_matches('/');
+    if !normalized_base.is_empty() && normalized_base != "/" && site.ends_with(normalized_base) {
+        format!("{}{}", site, join_base_path("/", path))
+    } else {
+        format!("{}{}", site, join_base_path(base, path))
+    }
+}
+
 /// Join a caller-provided relative path to `base` without allowing it to
 /// escape `base`.
 pub(crate) fn safe_join_relative(
@@ -100,6 +155,33 @@ mod tests {
     fn fnv1a_is_deterministic() {
         assert_eq!(fnv1a(b"hello"), fnv1a(b"hello"));
         assert_ne!(fnv1a(b"hello"), fnv1a(b"world"));
+    }
+
+    #[test]
+    fn join_base_path_prefixes_internal_urls_only() {
+        assert_eq!(
+            join_base_path("/docs/", "/guide/intro"),
+            "/docs/guide/intro"
+        );
+        assert_eq!(join_base_path("/docs/", "/"), "/docs/");
+        assert_eq!(join_base_path("/", "/guide/intro"), "/guide/intro");
+        assert_eq!(
+            join_base_path("/docs/", "https://example.com"),
+            "https://example.com"
+        );
+        assert_eq!(join_base_path("/docs/", "#top"), "#top");
+    }
+
+    #[test]
+    fn join_site_url_includes_base_without_doubling_it() {
+        assert_eq!(
+            join_site_url("https://example.com", "/docs/", "/guide/intro"),
+            "https://example.com/docs/guide/intro"
+        );
+        assert_eq!(
+            join_site_url("https://example.com/docs", "/docs/", "/guide/intro"),
+            "https://example.com/docs/guide/intro"
+        );
     }
 
     #[test]

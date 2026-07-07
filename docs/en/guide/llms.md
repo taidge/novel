@@ -1,3 +1,8 @@
+---
+title: AI Context Files
+description: Generate llms.txt, full AI context, and Markdown mirrors for documentation pages.
+---
+
 # AI Context Files
 
 Novel generates AI-readable documentation context files during `novel build`.
@@ -8,8 +13,6 @@ The CLI enables `LlmsTxtPlugin` and `MarkdownMirrorPlugin` by default and writes
 
 - `llms.txt` — a compact Markdown map of public documentation pages
 - `llms-full.txt` — the public documentation content in one file
-- `.well-known/llms.txt` — compatibility copy
-- `.well-known/llms-full.txt` — compatibility copy
 - one `.md` mirror per public page, such as `/guide/getting-started.md`
 
 These files are useful when users add your documentation as context in AI coding tools, or when crawlers need a clean overview without parsing site chrome, JavaScript, and rendered HTML.
@@ -30,7 +33,7 @@ For filesystem-backed builds, `llms-full.txt` prefers the original Markdown sour
 
 ## Custom Files
 
-You can override the generated files by placing your own `llms.txt`, `llms-full.txt`, or `.well-known/llms.txt` files in your docs directory. Static assets are copied after plugin output, so your custom files win.
+You can override the generated files by placing your own `llms.txt` or `llms-full.txt` files in your docs directory. Static assets are copied after plugin output, so your custom files win.
 
 ## Markdown Mirrors
 

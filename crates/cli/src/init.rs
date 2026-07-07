@@ -1,9 +1,10 @@
 use anyhow::Result;
-use std::path::Path;
+use std::path::{Component, Path};
 use tracing::info;
 
 /// Create a new documentation project with scaffolding
 pub fn create_project(parent_dir: &Path, name: &str) -> Result<()> {
+    let name = validate_project_name(name)?;
     let project_dir = parent_dir.join(name);
 
     if project_dir.exists() {
@@ -14,16 +15,17 @@ pub fn create_project(parent_dir: &Path, name: &str) -> Result<()> {
 
     // novel.toml
     let config = format!(
-        r#"title = "{name}"
+        r#"title = {name_json}
 description = "Documentation powered by Novel"
-root = "docs"
-out_dir = "dist"
+docs_dir = "docs"
+output_dir = "dist"
 base = "/"
 lang = "en"
 
 [theme]
 dark_mode = true
 "#,
+        name_json = serde_json::to_string(name)?,
     );
     std::fs::write(project_dir.join("novel.toml"), config)?;
 
@@ -33,17 +35,17 @@ dark_mode = true
 
     let index_md = format!(
         r#"---
-page_type: home
+layout: home
 hero:
-  name: {name}
+  name: {name_json}
   text: Fast & Simple Documentation
   tagline: Built with Novel - a Rust-powered static site generator
   actions:
     - text: Get Started
-      link: /guide/getting-started
+      url: /guide/getting-started
       theme: brand
     - text: GitHub
-      link: https://github.com
+      url: https://github.com
       theme: alt
 features:
   - title: Fast
@@ -57,6 +59,7 @@ features:
     details: Customizable themes, sidebar, and navigation.
 ---
 "#,
+        name_json = serde_json::to_string(name)?,
     );
     std::fs::write(docs_dir.join("index.md"), index_md)?;
 
@@ -167,4 +170,16 @@ fn main() {
     info!("  cd {} && novel dev", name);
 
     Ok(())
+}
+
+fn validate_project_name(name: &str) -> Result<&str> {
+    if name.trim().is_empty() || name.chars().any(|ch| ch.is_control()) {
+        anyhow::bail!("Project name must be non-empty and must not contain control characters");
+    }
+
+    let mut components = Path::new(name).components();
+    match (components.next(), components.next()) {
+        (Some(Component::Normal(_)), None) => Ok(name),
+        _ => anyhow::bail!("Project name must be a single directory name, not a path: {name}"),
+    }
 }

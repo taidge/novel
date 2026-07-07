@@ -21,11 +21,11 @@ pub struct TaxonomySet {
 
 /// Returns the (taxonomy_key, terms) for a page based on enabled taxonomies.
 fn page_terms_for(page: &PageData, key: &str) -> Vec<String> {
-    match key {
-        "tags" => page.frontmatter.tags.clone(),
-        "categories" => page.frontmatter.categories.clone(),
-        _ => Vec::new(),
-    }
+    page.frontmatter
+        .taxonomies
+        .get(key)
+        .cloned()
+        .unwrap_or_default()
 }
 
 /// Build inverted index for each configured taxonomy.

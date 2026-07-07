@@ -5,6 +5,7 @@ use novel_shared::{FrontMatter, PageData, RouteMeta, TocItem};
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag, TagEnd, html};
 use regex::Regex;
 use slug::slugify;
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::LazyLock;
 
@@ -27,6 +28,10 @@ pub struct MarkdownProcessor {
     project_root: Option<std::path::PathBuf>,
     source_root: Option<std::path::PathBuf>,
     show_line_numbers: bool,
+    wrap_code: bool,
+    summary_separator: String,
+    enable_math: bool,
+    enable_mermaid: bool,
     syntax_theme: String,
     custom_directives: Vec<Box<dyn ContainerDirective>>,
 }
@@ -37,6 +42,10 @@ impl MarkdownProcessor {
             project_root: project_root.map(|p| p.to_path_buf()),
             source_root: None,
             show_line_numbers: false,
+            wrap_code: false,
+            summary_separator: "<!-- more -->".to_string(),
+            enable_math: false,
+            enable_mermaid: false,
             syntax_theme: "base16-ocean.dark".to_string(),
             custom_directives: Vec::new(),
         }
@@ -49,6 +58,26 @@ impl MarkdownProcessor {
 
     pub fn with_line_numbers(mut self, show: bool) -> Self {
         self.show_line_numbers = show;
+        self
+    }
+
+    pub fn with_wrap_code(mut self, wrap: bool) -> Self {
+        self.wrap_code = wrap;
+        self
+    }
+
+    pub fn with_summary_separator(mut self, separator: impl Into<String>) -> Self {
+        self.summary_separator = separator.into();
+        self
+    }
+
+    pub fn with_math(mut self, enable: bool) -> Self {
+        self.enable_math = enable;
+        self
+    }
+
+    pub fn with_mermaid(mut self, enable: bool) -> Self {
+        self.enable_mermaid = enable;
         self
     }
 
@@ -89,28 +118,30 @@ impl MarkdownProcessor {
         };
 
         // 2a. Extract summary from <!-- more --> separator (if present)
-        let summary_separator = "<!-- more -->";
-        let (summary_md, body_for_processing) =
-            if let Some(idx) = markdown_body.find(summary_separator) {
-                (
-                    Some(markdown_body[..idx].to_string()),
-                    markdown_body.clone(),
-                )
-            } else {
-                (None, markdown_body.clone())
-            };
+        let (summary_md, body_for_processing) = if !self.summary_separator.is_empty()
+            && let Some(idx) = markdown_body.find(&self.summary_separator)
+        {
+            (
+                Some(markdown_body[..idx].to_string()),
+                markdown_body.clone(),
+            )
+        } else {
+            (None, markdown_body.clone())
+        };
 
         // 2. Pre-process container directives (including tabs, steps, badges)
         let processed = preprocess_containers(&body_for_processing, &self.custom_directives);
 
         // 3. Parse markdown and collect events
-        let options = Options::ENABLE_GFM
+        let mut options = Options::ENABLE_GFM
             | Options::ENABLE_STRIKETHROUGH
             | Options::ENABLE_TABLES
             | Options::ENABLE_TASKLISTS
             | Options::ENABLE_HEADING_ATTRIBUTES
-            | Options::ENABLE_FOOTNOTES
-            | Options::ENABLE_MATH;
+            | Options::ENABLE_FOOTNOTES;
+        if self.enable_math {
+            options |= Options::ENABLE_MATH;
+        }
 
         let parser = Parser::new_ext(&processed, options);
         let source_file_path = if file_path.is_absolute() {
@@ -123,6 +154,7 @@ impl MarkdownProcessor {
         let file_dir = source_file_path.parent().unwrap_or(Path::new("."));
 
         let mut toc: Vec<TocItem> = Vec::new();
+        let mut heading_ids: HashMap<String, usize> = HashMap::new();
         let mut first_h1: Option<String> = None;
         let mut events: Vec<Event> = Vec::new();
         let mut in_heading = false;
@@ -132,6 +164,9 @@ impl MarkdownProcessor {
         let mut code_lang = String::new();
         let mut code_info = String::new();
         let mut code_content = String::new();
+        let mut in_image = false;
+        let mut image_dest = String::new();
+        let mut image_alt = String::new();
 
         for event in parser {
             match event {
@@ -143,7 +178,7 @@ impl MarkdownProcessor {
                 }
                 Event::End(TagEnd::Heading(level)) => {
                     in_heading = false;
-                    let id = slugify(&heading_text);
+                    let id = unique_heading_id(&heading_text, &mut heading_ids);
                     if level as u32 == 1 && first_h1.is_none() {
                         first_h1 = Some(heading_text.clone());
                     }
@@ -170,6 +205,24 @@ impl MarkdownProcessor {
                         "<{} id=\"{}\">{} <a class=\"header-anchor\" href=\"#{}\">#</a></{}>",
                         h_tag, id, inner_html, id, h_tag
                     ))));
+                }
+                Event::Text(ref text) if in_image => {
+                    image_alt.push_str(text);
+                    if in_heading {
+                        heading_text.push_str(text);
+                    }
+                }
+                Event::Code(ref code) if in_image => {
+                    image_alt.push_str(code);
+                    if in_heading {
+                        heading_text.push_str(code);
+                    }
+                }
+                Event::SoftBreak | Event::HardBreak if in_image => {
+                    image_alt.push(' ');
+                    if in_heading {
+                        heading_text.push(' ');
+                    }
                 }
                 Event::Text(ref text) if in_heading => {
                     heading_text.push_str(text);
@@ -198,7 +251,7 @@ impl MarkdownProcessor {
                     in_code_block = false;
 
                     // Mermaid code blocks: render as <pre class="mermaid">
-                    if code_lang == "mermaid" {
+                    if self.enable_mermaid && code_lang == "mermaid" {
                         events.push(Event::Html(CowStr::from(format!(
                             "<pre class=\"mermaid\">{}</pre>",
                             html_escape(&code_content)
@@ -231,6 +284,7 @@ impl MarkdownProcessor {
                         // Check if line numbers should be shown
                         let show_ln =
                             self.show_line_numbers || code_info.contains("showLineNumbers");
+                        let wrap_code = self.wrap_code || code_info.contains("wrap");
 
                         // Check if this is a diff
                         let is_diff = code_lang == "diff" || code_info.contains("diff");
@@ -246,15 +300,16 @@ impl MarkdownProcessor {
                             highlight_code(&code_content, effective_lang, &self.syntax_theme);
 
                         // Build HTML with line features
-                        let html_output = build_code_block_html(
-                            &highlighted,
-                            &code_content,
-                            &code_lang,
-                            title.as_deref(),
-                            &highlighted_lines,
-                            show_ln,
+                        let html_output = build_code_block_html(CodeBlockRenderOptions {
+                            highlighted_html: &highlighted,
+                            raw_code: &code_content,
+                            lang: &code_lang,
+                            title: title.as_deref(),
+                            highlighted_lines: &highlighted_lines,
+                            show_line_numbers: show_ln,
+                            wrap_code,
                             is_diff,
-                        );
+                        });
 
                         events.push(Event::Html(CowStr::from(html_output)));
                     }
@@ -269,7 +324,7 @@ impl MarkdownProcessor {
                     if dest_url.starts_with("http://") || dest_url.starts_with("https://") {
                         events.push(Event::Html(CowStr::from(format!(
                             "<a href=\"{}\" target=\"_blank\" rel=\"noopener noreferrer\">",
-                            dest_url
+                            html_escape(&dest_url)
                         ))));
                     } else {
                         events.push(Event::Start(Tag::Link {
@@ -285,17 +340,19 @@ impl MarkdownProcessor {
                 }
                 // Images: add lazy loading and zoom support
                 Event::Start(Tag::Image { dest_url, .. }) => {
-                    events.push(Event::Html(CowStr::from(format!(
-                        "<img src=\"{}\" alt=\"",
-                        dest_url
-                    ))));
-                    // We'll collect alt text and close the tag in End(Image)
-                    // Actually, let's handle it differently - push a marker
+                    in_image = true;
+                    image_dest = dest_url.to_string();
+                    image_alt.clear();
                 }
                 Event::End(TagEnd::Image) => {
-                    events.push(Event::Html(CowStr::from(
-                        "\" loading=\"lazy\" class=\"zoomable\">",
-                    )));
+                    in_image = false;
+                    events.push(Event::Html(CowStr::from(format!(
+                        "<img src=\"{}\" alt=\"{}\" loading=\"lazy\" class=\"zoomable\">",
+                        html_escape(&image_dest),
+                        html_escape(&image_alt)
+                    ))));
+                    image_dest.clear();
+                    image_alt.clear();
                 }
                 // Math: inline $...$ and display $$...$$
                 Event::InlineMath(text) => {
@@ -335,7 +392,7 @@ impl MarkdownProcessor {
             summary_md.map(|md| render_simple_markdown(&md))
         };
 
-        let date = frontmatter.date.clone();
+        let published_at = frontmatter.published_at.clone();
 
         Ok(PageData {
             route,
@@ -344,7 +401,7 @@ impl MarkdownProcessor {
             content_html,
             toc,
             frontmatter,
-            last_updated: None,
+            git_updated_at: None,
             prev_page: None,
             next_page: None,
             reading_time: None,
@@ -352,7 +409,7 @@ impl MarkdownProcessor {
             breadcrumbs: Vec::new(),
             summary_html,
             collection: None,
-            date,
+            published_at,
             translations: Vec::new(),
             version_links: Vec::new(),
         })
@@ -360,39 +417,51 @@ impl MarkdownProcessor {
 }
 
 /// Build the complete code block HTML with line numbers, highlighting, and diff support
-fn build_code_block_html(
-    highlighted_html: &str,
-    raw_code: &str,
-    lang: &str,
-    title: Option<&str>,
-    highlighted_lines: &[usize],
+struct CodeBlockRenderOptions<'a> {
+    highlighted_html: &'a str,
+    raw_code: &'a str,
+    lang: &'a str,
+    title: Option<&'a str>,
+    highlighted_lines: &'a [usize],
     show_line_numbers: bool,
+    wrap_code: bool,
     is_diff: bool,
-) -> String {
-    let lines: Vec<&str> = raw_code.lines().collect();
+}
+
+fn build_code_block_html(opts: CodeBlockRenderOptions<'_>) -> String {
+    let lines: Vec<&str> = opts.raw_code.lines().collect();
 
     let mut html = String::new();
 
     // Wrapper div
     let mut classes = vec!["code-block".to_string()];
-    if show_line_numbers {
+    if opts.show_line_numbers {
         classes.push("with-line-numbers".to_string());
     }
-    if is_diff {
+    if opts.wrap_code {
+        classes.push("wrap-code".to_string());
+    }
+    if opts.is_diff {
         classes.push("diff".to_string());
     }
     html.push_str(&format!("<div class=\"{}\">", classes.join(" ")));
 
     // Title bar
-    if let Some(title) = title {
-        html.push_str(&format!("<div class=\"code-block-title\">{}</div>", title));
+    if let Some(title) = opts.title {
+        html.push_str(&format!(
+            "<div class=\"code-block-title\">{}</div>",
+            html_escape(title)
+        ));
     }
 
     // Header with language label and copy button
-    let has_header = !lang.is_empty();
+    let has_header = !opts.lang.is_empty();
     if has_header {
         html.push_str("<div class=\"code-block-header\">");
-        html.push_str(&format!("<span class=\"code-lang-label\">{}</span>", lang));
+        html.push_str(&format!(
+            "<span class=\"code-lang-label\">{}</span>",
+            html_escape(opts.lang)
+        ));
         html.push_str("<button class=\"copy-btn\" onclick=\"navigator.clipboard.writeText(this.closest('.code-block').querySelector('pre').textContent)\">Copy</button>");
         html.push_str("</div>");
     } else {
@@ -400,17 +469,17 @@ fn build_code_block_html(
     }
 
     // If we need line numbers or highlighted lines, wrap in a custom structure
-    if show_line_numbers || !highlighted_lines.is_empty() || is_diff {
+    if opts.show_line_numbers || !opts.highlighted_lines.is_empty() || opts.is_diff {
         html.push_str("<pre><code>");
         for (i, line) in lines.iter().enumerate() {
             let line_num = i + 1;
             let mut line_classes = Vec::new();
 
-            if highlighted_lines.contains(&line_num) {
+            if opts.highlighted_lines.contains(&line_num) {
                 line_classes.push("highlighted");
             }
 
-            if is_diff {
+            if opts.is_diff {
                 if line.starts_with('+') {
                     line_classes.push("diff-add");
                 } else if line.starts_with('-') {
@@ -424,7 +493,7 @@ fn build_code_block_html(
                 format!(" class=\"{}\"", line_classes.join(" "))
             };
 
-            if show_line_numbers {
+            if opts.show_line_numbers {
                 html.push_str(&format!("<span class=\"code-line\"{}>", class_attr));
                 html.push_str(&format!("<span class=\"line-number\">{}</span>", line_num));
                 html.push_str(&format!(
@@ -443,7 +512,7 @@ fn build_code_block_html(
         html.push_str("</code></pre>");
     } else {
         // Use syntect highlighted output directly
-        html.push_str(highlighted_html);
+        html.push_str(opts.highlighted_html);
     }
 
     html.push_str("</div>");
@@ -494,6 +563,20 @@ fn render_events_to_html(events: &[Event]) -> String {
     html_output
 }
 
+fn unique_heading_id(text: &str, seen: &mut HashMap<String, usize>) -> String {
+    let mut base = slugify(text);
+    if base.is_empty() {
+        base = "section".to_string();
+    }
+    let count = seen.entry(base.clone()).or_insert(0);
+    *count += 1;
+    if *count == 1 {
+        base
+    } else {
+        format!("{}-{}", base, count)
+    }
+}
+
 /// Parse title="..." from code fence info string
 fn parse_code_title(info: &str) -> Option<String> {
     CODE_TITLE_RE
@@ -515,4 +598,54 @@ pub fn collect_internal_links(html: &str) -> Vec<String> {
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use novel_shared::RouteMeta;
+
+    fn route() -> RouteMeta {
+        RouteMeta {
+            route_path: "/test".to_string(),
+            absolute_path: "test.md".to_string(),
+            relative_path: "test.md".to_string(),
+            page_name: "test".to_string(),
+            locale: None,
+            version: None,
+        }
+    }
+
+    #[test]
+    fn repeated_headings_get_unique_ids() {
+        let page = MarkdownProcessor::new(None)
+            .process_string(
+                "# Page\n\n## Intro\n\n## Intro\n",
+                Path::new("test.md"),
+                route(),
+            )
+            .unwrap();
+
+        assert!(page.content_html.contains(r#"<h2 id="intro">"#));
+        assert!(page.content_html.contains(r#"<h2 id="intro-2">"#));
+        assert_eq!(page.toc[0].id, "intro");
+        assert_eq!(page.toc[1].id, "intro-2");
+    }
+
+    #[test]
+    fn custom_summary_separator_is_used() {
+        let page = MarkdownProcessor::new(None)
+            .with_summary_separator("<!-- cut -->")
+            .process_string(
+                "# Page\n\nLead paragraph.\n\n<!-- cut -->\n\nRest.",
+                Path::new("test.md"),
+                route(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            page.summary_html.as_deref(),
+            Some("<h1>Page</h1>\n<p>Lead paragraph.</p>\n")
+        );
+    }
 }

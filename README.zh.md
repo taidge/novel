@@ -9,7 +9,7 @@ Novel 能够在毫秒级时间内将一个 Markdown 文件夹转换为精美的�
 ## 特性
 
 - **极速构建** —— 完全使用 Rust 编写，构建速度以毫秒计，而非秒。
-- **可嵌入** —— 既可作为 CLI 使用,也可作为库嵌入：`Novel::new("docs").build()`。
+- **可嵌入** —— 既可作为 CLI 使用,也可作为库嵌入：`DirNovel::new("docs").build()`。
 - **Markdown 优先** —— 开箱即用的 GFM、语法高亮、选项卡、步骤、徽章和容器指令。
 - **文件嵌入** —— 支持从外部文件按行范围嵌入源代码，让文档与代码保持同步。
 - **精美主题** —— 内置深色模式、响应式布局、搜索、上下页导航和图片缩放。
@@ -62,8 +62,8 @@ my-docs/
 ```toml
 title = "My Docs"
 description = "My documentation site"
-root = "docs"
-out_dir = "dist"
+docs_dir = "docs"
+output_dir = "dist"
 base = "/"
 lang = "zh"
 site_url = "https://example.com"  # 启用站点地图和 RSS
@@ -75,9 +75,9 @@ check_dead_links = false
 [theme]
 dark_mode = true
 footer = "Built with Novel"
-last_updated = true
-edit_link = "https://github.com/user/repo/edit/main/docs/"
-source_link = "https://github.com/user/repo"
+show_git_updated_at = true
+edit_url = "https://github.com/user/repo/edit/main/docs/"
+source_url = "https://github.com/user/repo"
 ```
 
 大多数字段都有合理的默认值 —— 你只需配置想要自定义的部分即可。
@@ -94,16 +94,18 @@ novel-core = { path = "path/to/novel/crates/core" }
 仅需三行即可构建并写入磁盘：
 
 ```rust
-let site = novel_core::Novel::new("docs").build()?;
+use novel_core::{DirNovel, Novel};
+
+let site = DirNovel::new("docs").build()?;
 site.write_to("dist")?;
 ```
 
 或通过 Builder API 进行定制：
 
 ```rust
-use novel_core::Novel;
+use novel_core::{DirNovel, Novel};
 
-let site = Novel::new("docs")
+let site = DirNovel::new("docs")
     .title("My API Reference")
     .description("Generated docs for my-crate")
     .base("/docs/")
@@ -111,7 +113,7 @@ let site = Novel::new("docs")
     .with_theme(|t| {
         t.dark_mode = true;
         t.footer = Some("Built with Novel".into());
-        t.last_updated = true;
+        t.show_git_updated_at = true;
     })
     .build()?;
 
@@ -123,7 +125,9 @@ site.write_to("./output")?;
 `.build()` 返回的 `BuiltSite` 可以按需渲染页面，因此能轻松集成到 Axum（或任何其他）服务器中：
 
 ```rust
-let site = novel_core::Novel::new("docs").build()?;
+use novel_core::{DirNovel, Novel};
+
+let site = DirNovel::new("docs").build()?;
 let page = site.page("/guide/intro").unwrap();
 let html = site.render_page(page)?;
 ```

@@ -1,3 +1,8 @@
+---
+title: General SSG Mode
+description: Build blogs, marketing pages, portfolios, and other content sites with Novel.
+---
+
 # General SSG Mode
 
 In addition to documentation sites, Novel can build blogs, marketing pages, portfolios, and other content sites. The general SSG features are **opt-in** and stack on top of the existing doc-site experience without breaking it.
@@ -21,9 +26,9 @@ docs/
 ```toml
 layout = "blog"             # default layout for entries
 list_layout = "list"        # layout for /posts/ index
-sort_by = "date"            # date | weight | title
+sort_by = "published_at"    # published_at | weight | title
 order = "desc"              # desc | asc
-paginate_by = 10            # 0 disables pagination
+per_page = 10               # omit to disable pagination
 publish = true
 ```
 
@@ -40,16 +45,17 @@ dist/posts/page/2/index.html           # page 2
 ```yaml
 ---
 title: Hello World
-date: 2026-04-01
-updated: 2026-04-07
+published_at: 2026-04-01
+updated_at: 2026-04-07
 draft: false
 weight: 10
 summary: Optional manual summary
-tags: [novel, intro]
-categories: [news]
+taxonomies:
+  tags: [novel, intro]
+  categories: [news]
 series: novel-internals
 authors: [chris]
-expiry_date: 2027-01-01
+expires_at: 2027-01-01
 ---
 
 Lead paragraph shown on the list page.
@@ -61,23 +67,22 @@ The rest of the post body.
 
 | Field | Type | Description |
 |---|---|---|
-| `date` | `YYYY-MM-DD` | Publish date — used for sorting, archives, feeds |
-| `updated` | `YYYY-MM-DD` | Last-updated date — exposed via OG `article:modified_time` |
+| `published_at` | `YYYY-MM-DD` | Publish date — used for sorting, archives, feeds |
+| `updated_at` | `YYYY-MM-DD` | Last-updated date — exposed via OG `article:modified_time` |
 | `draft` | bool | Excluded from build unless `--drafts` |
 | `weight` | int | Sort key when `sort_by = "weight"` |
 | `summary` | string | Manual summary (overrides `<!-- more -->` extraction) |
-| `tags` | list | Taxonomy entries (see below) |
-| `categories` | list | Taxonomy entries |
+| `taxonomies` | map | Taxonomy entries keyed by configured taxonomy name |
 | `series` | string | Series identifier — generates `/series/<slug>/` |
 | `authors` | list | Author names — exposed via OG `article:author` |
-| `expiry_date` | `YYYY-MM-DD` | Page is excluded after this date unless `--future` |
+| `expires_at` | `YYYY-MM-DD` | Page is excluded after this date unless `--future` |
 
 ## Drafts and future-dated content
 
 ```bash
 novel build              # excludes drafts and future-dated pages
 novel build --drafts     # include draft: true pages
-novel build --future     # include pages with date > today
+novel build --future     # include pages with published_at > today
 ```
 
 The same flags work via config:
@@ -106,12 +111,10 @@ Configure in `novel.toml`:
 
 ```toml
 [taxonomies.tags]
-name = "Tags"
 
 [taxonomies.categories]
-name = "Categories"
 permalink = "/cat/{slug}/"   # optional, default /<key>/<slug>/
-paginate_by = 10              # optional, no pagination by default
+per_page = 10              # optional, no pagination by default
 ```
 
 For each taxonomy Novel emits:
@@ -139,11 +142,11 @@ Any page with `series: <name>` joins a virtual series index:
 dist/series/<slug>/index.html
 ```
 
-Entries are sorted **ascending by date** so the reading order makes sense.
+Entries are sorted **ascending by published_at** so the reading order makes sense.
 
 ## Date archives
 
-Every page that has `date` is grouped automatically:
+Every page that has `published_at` is grouped automatically:
 
 ```
 dist/archive/2026/index.html         # year archive
@@ -185,7 +188,7 @@ Subdirectories nest deeper into the tree, so `data/nav/links.json` is reachable 
 | `feed.json` | Site-wide JSON Feed v1.1 |
 | `<collection>/feed.xml` | One Atom feed per collection |
 
-Per-collection feeds use `page.date` and `summary_html` for richer entries.
+Per-collection feeds use `page.published_at` and `summary_html` for richer entries.
 
 ## Shortcodes (template helpers)
 
@@ -243,10 +246,10 @@ The default `base.html` already emits a rich Open Graph block when `site.site_ur
 
 | OG meta | Source |
 |---|---|
-| `article:published_time` | `frontmatter.date` |
-| `article:modified_time` | `frontmatter.updated` |
+| `article:published_time` | `frontmatter.published_at` |
+| `article:modified_time` | `frontmatter.updated_at` |
 | `article:author` (per author) | `frontmatter.authors` |
-| `article:tag` (per tag) | `frontmatter.tags` |
+| `article:tag` (per tag) | `frontmatter.taxonomies.tags` |
 
 ## Theme packs
 

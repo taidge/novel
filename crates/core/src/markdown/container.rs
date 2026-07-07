@@ -1,4 +1,5 @@
 use crate::plugin::ContainerDirective;
+use crate::util::html_escape;
 use regex::Regex;
 use std::sync::LazyLock;
 
@@ -100,7 +101,11 @@ pub fn preprocess_containers(
     for d in custom_directives {
         type_names.push(d.name());
     }
-    let types_pattern = type_names.join("|");
+    let types_pattern = type_names
+        .into_iter()
+        .map(regex::escape)
+        .collect::<Vec<_>>()
+        .join("|");
 
     let open_re = Regex::new(&format!(r"^:::\s*({})(.*)$", types_pattern)).expect("valid regex");
     let close_re = &*CLOSE_RE;
@@ -164,7 +169,7 @@ pub fn preprocess_containers(
                             output.push_str(&format!(
                                 "<details class=\"container {}\">\n<summary>{}</summary>\n\n",
                                 ct.css_class(),
-                                title
+                                html_escape(&title)
                             ));
                             container_type = Some(ct);
                             in_container = true;
@@ -178,7 +183,7 @@ pub fn preprocess_containers(
                             output.push_str(&format!(
                                 "<div class=\"container {}\">\n<div class=\"container-title\">{}</div>\n\n",
                                 ct.css_class(),
-                                title
+                                html_escape(&title)
                             ));
                             container_type = Some(ct);
                             in_container = true;
@@ -320,7 +325,8 @@ pub fn preprocess_containers(
         let badge_text = caps.get(2).expect("regex has 2 groups").as_str();
         format!(
             "<span class=\"badge badge-{}\">{}</span>",
-            badge_type, badge_text
+            badge_type,
+            html_escape(badge_text)
         )
     });
 
@@ -344,7 +350,8 @@ fn render_tabs_html(out: &mut String, group: usize, headers: &[String], panels: 
             "<button class=\"tab-btn{active_cls}\" role=\"tab\" \
              id=\"tab-{group}-{i}\" data-tab=\"{i}\" \
              aria-selected=\"{selected}\" aria-controls=\"panel-{group}-{i}\" \
-             tabindex=\"{tabindex}\">{header}</button>\n"
+             tabindex=\"{tabindex}\">{header}</button>\n",
+            header = html_escape(header)
         ));
     }
     out.push_str("</div>\n");
@@ -433,6 +440,16 @@ mod tests {
         let input = "This is {badge:tip|New} feature\n";
         let output = preprocess_containers(input, &[]);
         assert!(output.contains(r#"<span class="badge badge-tip">New</span>"#));
+    }
+
+    #[test]
+    fn container_titles_and_badges_are_escaped() {
+        let input = "::: warning <script>alert(1)</script>\nBody\n:::\n{badge:tip|<img src=x onerror=alert(1)>}\n";
+        let output = preprocess_containers(input, &[]);
+        assert!(output.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+        assert!(output.contains("&lt;img src=x onerror=alert(1)&gt;"));
+        assert!(!output.contains("<script>alert(1)</script>"));
+        assert!(!output.contains("<img src=x onerror=alert(1)>"));
     }
 
     #[test]

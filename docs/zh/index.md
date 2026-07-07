@@ -1,22 +1,23 @@
 ---
-page_type: home
+layout: home
+description: Novel 是一个由 Rust 驱动的高速静态文档站点生成器,可独立运行或嵌入使用。
 hero:
   name: Novel
   text: 极速文档,Rust 驱动
   tagline: 一个静态文档站点生成器 — 既可独立运行,也可作为库嵌入到你自己的服务器中
   actions:
     - text: 快速开始
-      link: /guide/getting-started
+      url: /guide/getting-started
       theme: brand
     - text: 库 API
-      link: /guide/library
+      url: /guide/library
       theme: alt
 features:
   - title: 极致性能
     details: 完全使用 Rust 构建。构建以毫秒计,而非秒。
     icon: "\u26A1"
   - title: 可嵌入
-    details: 既可作为 CLI 使用,也可作为库嵌入。Novel::new("docs").build() — 就这么简单。
+    details: 既可作为 CLI 使用,也可作为库嵌入。DirNovel::new("docs").build() — 就这么简单。
     icon: "\U0001F4E6"
   - title: Markdown 优先
     details: 开箱即用地支持 GFM、语法高亮、选项卡、步骤、徽章以及容器指令。

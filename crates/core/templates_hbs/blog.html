@@ -14,7 +14,7 @@
     {{#if site.theme.banner}}
     <div class="banner" id="site-banner">
         <div class="banner-inner">
-            {{#if site.theme.banner.link}}<a href="{{ site.theme.banner.link }}">{{ site.theme.banner.text }}</a>{{else}}{{ site.theme.banner.text }}{{/if}}
+            {{#if site.theme.banner.url}}<a href="{{ site.theme.banner.url }}">{{ site.theme.banner.text }}</a>{{else}}{{ site.theme.banner.text }}{{/if}}
         </div>
         {{#if site.theme.banner.dismissible}}
         <button class="banner-close" onclick="dismissBanner()" aria-label="Dismiss">&times;</button>
@@ -32,8 +32,8 @@
                 <article class="markdown-body">
                     <header class="blog-header">
                         <h1>{{ page.title }}</h1>
-                        {{#if page.last_updated}}
-                        <time class="blog-date">{{ page.last_updated }}</time>
+                        {{#if page.git_updated_at}}
+                        <time class="blog-date">{{ page.git_updated_at }}</time>
                         {{/if}}
                         {{#if page.description}}
                         <p class="blog-description">{{ page.description }}</p>
@@ -44,12 +44,12 @@
 
                 {{#if page.prev_page}}
                 <nav class="prev-next">
-                    <a href="{{ page.prev_page.link }}" class="prev-next-link prev">
+                    <a href="{{ page.prev_page.url }}" class="prev-next-link prev">
                         <span class="prev-next-label">Previous</span>
                         <span class="prev-next-title">{{ page.prev_page.title }}</span>
                     </a>
                     {{#if page.next_page}}
-                    <a href="{{ page.next_page.link }}" class="prev-next-link next">
+                    <a href="{{ page.next_page.url }}" class="prev-next-link next">
                         <span class="prev-next-label">Next</span>
                         <span class="prev-next-title">{{ page.next_page.title }}</span>
                     </a>
@@ -61,7 +61,7 @@
                 {{#if page.next_page}}
                 <nav class="prev-next">
                     <span></span>
-                    <a href="{{ page.next_page.link }}" class="prev-next-link next">
+                    <a href="{{ page.next_page.url }}" class="prev-next-link next">
                         <span class="prev-next-label">Next</span>
                         <span class="prev-next-title">{{ page.next_page.title }}</span>
                     </a>

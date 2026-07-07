@@ -1,3 +1,8 @@
+---
+title: Static Assets
+description: Manage images, downloads, and other public assets in a Novel documentation site.
+---
+
 # Static Assets
 
 Novel automatically handles static assets (images, fonts, PDFs, etc.) in your documentation directory.

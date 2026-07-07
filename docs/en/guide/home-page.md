@@ -1,24 +1,29 @@
+---
+title: Home Page
+description: Configure the root home page with hero content, actions, and feature sections.
+---
+
 # Home Page
 
 The home page is configured through frontmatter in your root `docs/index.md` file.
 
 ## Setup
 
-Set `page_type: home` in the frontmatter to activate the home page layout:
+Set `layout: home` in the frontmatter to activate the home page layout:
 
 ```yaml title="docs/index.md"
 ---
-page_type: home
+layout: home
 hero:
   name: My Project
   text: Build Amazing Things
   tagline: A fast and modern tool for developers
   actions:
     - text: Get Started
-      link: /guide/getting-started
+      url: /guide/getting-started
       theme: brand
     - text: GitHub
-      link: https://github.com/user/repo
+      url: https://github.com/user/repo
       theme: alt
 features:
   - title: Fast
@@ -52,7 +57,7 @@ Each action is a button in the hero section:
 ```yaml
 actions:
   - text: Get Started       # Button label
-    link: /guide/intro       # URL to navigate to
+    url: /guide/intro       # URL to navigate to
     theme: brand             # "brand" (primary) or "alt" (secondary)
 ```
 
@@ -74,7 +79,7 @@ features:
   - title: Feature Name
     icon: "\U0001F680"        # Emoji or text icon
     details: Description of this feature.
-    link: /guide/feature       # Optional: makes the card clickable
+    url: /guide/feature       # Optional: makes the card clickable
 ```
 
 | Field | Type | Description |
@@ -82,7 +87,7 @@ features:
 | `title` | string | Feature card heading |
 | `icon` | string | Emoji or text displayed above the title |
 | `details` | string | Feature description |
-| `link` | string | Optional URL — makes the card clickable |
+| `url` | string | Optional URL — makes the card clickable |
 
 ## Body Content
 

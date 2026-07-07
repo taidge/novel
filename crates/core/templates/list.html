@@ -16,8 +16,8 @@
         <ul class="post-list">
         {% for item in paginator.items %}
             <li class="post-list-item">
-                <h2><a href="{{ item.link }}">{{ item.title }}</a></h2>
-                {% if item.date %}<time class="post-date">{{ item.date }}</time>{% endif %}
+                <h2><a href="{{ route_url(item.url) }}">{{ item.title }}</a></h2>
+                {% if item.published_at %}<time class="post-date">{{ item.published_at }}</time>{% endif %}
                 {% if item.summary_html %}<div class="post-summary">{{ item.summary_html|safe }}</div>{% endif %}
             </li>
         {% endfor %}
@@ -25,9 +25,9 @@
 
         {% if paginator.total_pages > 1 %}
         <nav class="pagination">
-            {% if paginator.prev_url %}<a href="{{ paginator.prev_url }}" class="pagination-prev">← Newer</a>{% else %}<span></span>{% endif %}
+            {% if paginator.prev_url %}<a href="{{ route_url(paginator.prev_url) }}" class="pagination-prev">← Newer</a>{% else %}<span></span>{% endif %}
             <span class="pagination-info">{{ paginator.current }} / {{ paginator.total_pages }}</span>
-            {% if paginator.next_url %}<a href="{{ paginator.next_url }}" class="pagination-next">Older →</a>{% else %}<span></span>{% endif %}
+            {% if paginator.next_url %}<a href="{{ route_url(paginator.next_url) }}" class="pagination-next">Older →</a>{% else %}<span></span>{% endif %}
         </nav>
         {% endif %}
     </main>

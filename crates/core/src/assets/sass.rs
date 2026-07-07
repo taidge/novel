@@ -17,8 +17,8 @@ pub fn compile(cfg: &SassConfig, project_root: &Path, output_dir: &Path) -> Resu
     let load_paths: Vec<std::path::PathBuf> = cfg
         .load_paths
         .iter()
-        .map(|p| project_root.join(p))
-        .collect();
+        .map(|p| crate::util::safe_join_relative(project_root, Path::new(p)))
+        .collect::<std::io::Result<_>>()?;
     let opts = grass::Options::default().load_paths(&load_paths);
 
     for entry in &cfg.entries {
@@ -29,7 +29,7 @@ pub fn compile(cfg: &SassConfig, project_root: &Path, output_dir: &Path) -> Resu
                 continue;
             }
         };
-        let input_path = project_root.join(input_rel);
+        let input_path = crate::util::safe_join_relative(project_root, Path::new(input_rel))?;
         let css = grass::from_path(&input_path, &opts)?;
         let output_path = crate::util::safe_join_relative(output_dir, Path::new(output_rel))?;
         if let Some(parent) = output_path.parent() {

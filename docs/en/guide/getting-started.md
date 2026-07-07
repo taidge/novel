@@ -1,3 +1,8 @@
+---
+title: Getting Started
+description: Install Novel, create a project, and build your first documentation site.
+---
+
 # Getting Started
 
 Get up and running with Novel in minutes.
@@ -62,8 +67,8 @@ Create `novel.toml` in your project root:
 ```toml title="novel.toml"
 title = "My Docs"
 description = "My documentation site"
-root = "docs"
-out_dir = "dist"
+docs_dir = "docs"
+output_dir = "dist"
 base = "/"
 lang = "en"
 site_url = "https://example.com"  # enables sitemap & RSS
@@ -75,14 +80,14 @@ check_dead_links = false    # validate internal links at build time
 [theme]
 dark_mode = true
 footer = "Built with Novel"
-last_updated = true         # show git timestamps
-edit_link = "https://github.com/user/repo/edit/main/docs/"
-source_link = "https://github.com/user/repo"
+show_git_updated_at = true         # show git timestamps
+edit_url = "https://github.com/user/repo/edit/main/docs/"
+source_url = "https://github.com/user/repo"
 
 # announcement banner
 [theme.banner]
 text = "Novel v0.2 is out!"
-link = "/guide/getting-started"
+url = "/guide/getting-started"
 dismissible = true
 ```
 

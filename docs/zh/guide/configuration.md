@@ -1,3 +1,8 @@
+---
+title: 配置
+description: 使用 novel.toml 配置 Novel,并理解控制站点行为的主要选项。
+---
+
 # 配置
 
 Novel 通过位于项目根目录的 `novel.toml` 文件进行配置。所有字段均为可选,且都有合理的默认值。
@@ -12,10 +17,10 @@ title = "My Docs"
 description = "Documentation for my project"
 
 # 文档根目录(相对于项目根目录)
-root = "docs"
+docs_dir = "docs"
 
 # 构建输出目录
-out_dir = "dist"
+output_dir = "dist"
 
 # 基础 URL 路径 —— 部署到子路径时设置
 # 例如 "/docs/" 对应 https://example.com/docs/
@@ -33,8 +38,6 @@ logo = "/logo.svg"
 # Favicon 路径
 icon = "/favicon.ico"
 
-# 移除 URL 中的 .html 扩展名
-clean_urls = false
 ```
 
 ## Markdown 选项
@@ -62,20 +65,20 @@ dark_mode = true
 footer = "Built with Novel | Apache 2.0 License"
 
 # 在页面上显示 git 最后更新时间
-last_updated = true
+show_git_updated_at = true
 
-# 最后更新时间的自定义文本
-last_updated_text = "最后更新"
+# Git 更新时间标签的自定义文本
+git_updated_text = "最后更新"
 
 # "编辑此页面"链接模板
 # 页面的相对文件路径会被追加到该 URL 后
-edit_link = "https://github.com/user/repo/edit/main/docs/"
+edit_url = "https://github.com/user/repo/edit/main/docs/"
 
-# 编辑链接的自定义文本
-edit_link_text = "在 GitHub 上编辑此页"
+# 编辑操作的自定义文本
+edit_text = "在 GitHub 上编辑此页"
 
 # 源码仓库链接(在导航栏显示 GitHub 图标)
-source_link = "https://github.com/user/repo"
+source_url = "https://github.com/user/repo"
 ```
 
 ### 导航
@@ -85,15 +88,15 @@ source_link = "https://github.com/user/repo"
 ```toml title="novel.toml"
 [[theme.nav]]
 text = "指南"
-link = "/zh/guide/"
+url = "/zh/guide/"
 
 [[theme.nav]]
 text = "API"
-link = "/api/"
+url = "/api/"
 
 [[theme.nav]]
 text = "Blog"
-link = "https://blog.example.com"
+url = "https://blog.example.com"
 ```
 
 ### 侧边栏
@@ -105,12 +108,12 @@ link = "https://blog.example.com"
 [[theme.sidebar."/guide/"]]
 type = "link"
 text = "快速开始"
-link = "/guide/getting-started"
+url = "/guide/getting-started"
 
 [[theme.sidebar."/guide/"]]
 type = "link"
 text = "配置"
-link = "/guide/configuration"
+url = "/guide/configuration"
 ```
 
 ### 社交链接
@@ -118,11 +121,11 @@ link = "/guide/configuration"
 ```toml title="novel.toml"
 [[theme.social_links]]
 icon = "GitHub"
-link = "https://github.com/user/repo"
+url = "https://github.com/user/repo"
 
 [[theme.social_links]]
 icon = "Twitter"
-link = "https://twitter.com/user"
+url = "https://twitter.com/user"
 ```
 
 ### 公告横幅
@@ -132,7 +135,7 @@ link = "https://twitter.com/user"
 ```toml title="novel.toml"
 [theme.banner]
 text = "Novel v1.0 正式发布!"
-link = "/guide/getting-started"
+url = "/guide/getting-started"
 dismissible = true
 ```
 
@@ -151,10 +154,8 @@ page_path = "page"             # /posts/page/2/
 first_page_in_root = true      # 首页位于 /posts/
 
 [taxonomies.tags]
-name = "Tags"
 
 [taxonomies.categories]
-name = "Categories"
 
 # 主题包: 额外的模板加载目录
 [theme]
@@ -253,8 +254,8 @@ question = "这个页面有帮助吗?"
 positive_text = "有"
 negative_text = "没有"
 thanks_text = "感谢反馈。"
-positive_link = "https://github.com/user/repo/discussions"
-negative_link = "https://github.com/user/repo/issues/new"
+positive_url = "https://github.com/user/repo/discussions"
+negative_url = "https://github.com/user/repo/issues/new"
 ```
 
 详见[页面反馈](./feedback)。
@@ -278,8 +279,8 @@ templates/
 ```toml title="novel.toml"
 title = "My Project"
 description = "Documentation for My Project"
-root = "docs"
-out_dir = "dist"
+docs_dir = "docs"
+output_dir = "dist"
 base = "/"
 lang = "zh"
 site_url = "https://my-project.dev"
@@ -293,20 +294,20 @@ check_dead_links = true
 [theme]
 dark_mode = true
 footer = "Copyright 2025 My Project"
-last_updated = true
-edit_link = "https://github.com/user/my-project/edit/main/docs/"
-source_link = "https://github.com/user/my-project"
+show_git_updated_at = true
+edit_url = "https://github.com/user/my-project/edit/main/docs/"
+source_url = "https://github.com/user/my-project"
 
 [[theme.nav]]
 text = "指南"
-link = "/zh/guide/"
+url = "/zh/guide/"
 
 [[theme.nav]]
 text = "API"
-link = "/api/"
+url = "/api/"
 
 [theme.banner]
 text = "v1.0 正式发布!"
-link = "/guide/getting-started"
+url = "/guide/getting-started"
 dismissible = true
 ```

@@ -29,7 +29,7 @@ pub(crate) mod util;
 
 use anyhow::Result;
 use novel_shared::config::{I18nConfig, LocaleConfig, SiteConfig, VersionConfig, VersioningConfig};
-use novel_shared::{NavItem, PageData, PageType, SidebarItem, VersionLink};
+use novel_shared::{NavItem, PageData, SidebarItem, VersionLink};
 use plugin::{BuiltSiteView, Plugin};
 use rust_embed::Embed;
 use std::collections::HashMap;
@@ -37,7 +37,7 @@ use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use tracing::info;
 
-use builder::{build_pages, get_git_last_updated, route_to_file_path};
+use builder::{build_pages, get_git_updated_at, route_to_file_path};
 use fs_retry::clean_dir_contents;
 use post_process::{ListPage, TermsPage, post_process_general};
 use search::generate_search_index;
@@ -73,7 +73,7 @@ pub trait Novel {
 ///
 /// # Usage
 ///
-/// **Standalone (with `novel.toml` or `novel.kdl`)**
+/// **Standalone (with `novel.toml`)**
 /// ```no_run
 /// use novel_core::{Novel, DirNovel};
 /// let site = DirNovel::load(".")?.build()?;
@@ -113,7 +113,7 @@ impl DirNovel {
             .unwrap_or_else(|| "docs".to_string());
 
         let config = SiteConfig {
-            root: root_rel,
+            docs_dir: root_rel,
             ..SiteConfig::default()
         };
         Self {
@@ -123,7 +123,7 @@ impl DirNovel {
         }
     }
 
-    /// Load from a project root that contains `novel.toml` or `novel.kdl`.
+    /// Load from a project root that contains `novel.toml`.
     pub fn load(project_root: impl AsRef<Path>) -> Result<Self> {
         let project_root = project_root.as_ref().to_path_buf();
         let config = SiteConfig::load(&project_root)?;
@@ -156,8 +156,8 @@ impl DirNovel {
         self
     }
 
-    pub fn out_dir(mut self, dir: impl Into<String>) -> Self {
-        self.config.out_dir = dir.into();
+    pub fn output_dir(mut self, dir: impl Into<String>) -> Self {
+        self.config.output_dir = dir.into();
         self
     }
 
@@ -219,7 +219,7 @@ impl Novel for DirNovel {
             p.configure(val);
         }
 
-        let docs_root = self.config.docs_root(&self.project_root);
+        let docs_root = self.config.docs_root_checked(&self.project_root)?;
         if !docs_root.exists() {
             anyhow::bail!(
                 "Docs root directory does not exist: {}",
@@ -246,7 +246,7 @@ impl Novel for DirNovel {
                 }
 
                 let version_dir = version_dir(version);
-                let version_docs = docs_root.join(&version_dir);
+                let version_docs = util::safe_join_relative(&docs_root, Path::new(&version_dir))?;
                 if !version_docs.exists() {
                     tracing::warn!(
                         "Version docs directory does not exist: {}",
@@ -258,7 +258,8 @@ impl Novel for DirNovel {
                 let prefix = version_route_prefix(versions, version);
                 if let Some(ref i18n) = self.config.i18n {
                     for locale in &i18n.locales {
-                        let locale_docs = version_docs.join(&locale.dir);
+                        let locale_docs =
+                            util::safe_join_relative(&version_docs, Path::new(&locale.dir))?;
                         if !locale_docs.exists() {
                             tracing::warn!(
                                 "Version locale docs directory does not exist: {}",
@@ -289,10 +290,10 @@ impl Novel for DirNovel {
                             page.route.locale = Some(locale.code.clone());
                         }
 
-                        if self.config.theme.last_updated {
+                        if self.config.theme.show_git_updated_at {
                             for page in &mut br.pages {
                                 let file_path = locale_docs.join(&page.route.relative_path);
-                                page.last_updated = get_git_last_updated(&file_path);
+                                page.git_updated_at = get_git_updated_at(&file_path);
                             }
                         }
 
@@ -320,10 +321,10 @@ impl Novel for DirNovel {
 
                     apply_version_scope(&mut br.pages, version, &prefix, &scoped_prefixes);
 
-                    if self.config.theme.last_updated {
+                    if self.config.theme.show_git_updated_at {
                         for page in &mut br.pages {
                             let file_path = version_docs.join(&page.route.relative_path);
-                            page.last_updated = get_git_last_updated(&file_path);
+                            page.git_updated_at = get_git_updated_at(&file_path);
                         }
                     }
 
@@ -345,7 +346,7 @@ impl Novel for DirNovel {
 
             // i18n multi-locale build
             for locale in &i18n.locales {
-                let locale_docs = docs_root.join(&locale.dir);
+                let locale_docs = util::safe_join_relative(&docs_root, Path::new(&locale.dir))?;
                 if !locale_docs.exists() {
                     tracing::warn!(
                         "Locale docs directory does not exist: {}",
@@ -374,11 +375,11 @@ impl Novel for DirNovel {
                     if let Some(ref footer) = theme_overrides.footer {
                         locale_config.theme.footer = Some(footer.clone());
                     }
-                    if let Some(ref text) = theme_overrides.edit_link_text {
-                        locale_config.theme.edit_link_text = Some(text.clone());
+                    if let Some(ref text) = theme_overrides.edit_text {
+                        locale_config.theme.edit_text = Some(text.clone());
                     }
-                    if let Some(ref text) = theme_overrides.last_updated_text {
-                        locale_config.theme.last_updated_text = Some(text.clone());
+                    if let Some(ref text) = theme_overrides.git_updated_text {
+                        locale_config.theme.git_updated_text = Some(text.clone());
                     }
                 }
 
@@ -402,26 +403,26 @@ impl Novel for DirNovel {
 
                     // Update prev/next links
                     if let Some(ref mut prev) = page.prev_page {
-                        if prev.link == "/" {
-                            prev.link = format!("{}/", prefix);
+                        if prev.url == "/" {
+                            prev.url = format!("{}/", prefix);
                         } else {
-                            prev.link = format!("{}{}", prefix, prev.link);
+                            prev.url = format!("{}{}", prefix, prev.url);
                         }
                     }
                     if let Some(ref mut next) = page.next_page {
-                        if next.link == "/" {
-                            next.link = format!("{}/", prefix);
+                        if next.url == "/" {
+                            next.url = format!("{}/", prefix);
                         } else {
-                            next.link = format!("{}{}", prefix, next.link);
+                            next.url = format!("{}{}", prefix, next.url);
                         }
                     }
 
                     // Update breadcrumb links
                     for crumb in &mut page.breadcrumbs {
-                        if crumb.link == "/" {
-                            crumb.link = format!("{}/", prefix);
+                        if crumb.url == "/" {
+                            crumb.url = format!("{}/", prefix);
                         } else {
-                            crumb.link = format!("{}{}", prefix, crumb.link);
+                            crumb.url = format!("{}{}", prefix, crumb.url);
                         }
                     }
 
@@ -442,37 +443,34 @@ impl Novel for DirNovel {
                         && let Some(ref mut actions) = hero.actions
                     {
                         for action in actions {
-                            action.link =
-                                prefix_internal_path(&action.link, &locale.code, &all_locales);
+                            action.url =
+                                prefix_internal_path(&action.url, &locale.code, &all_locales);
                         }
                     }
                     if let Some(ref mut features) = page.frontmatter.features {
                         for feature in features {
-                            if let Some(ref mut link) = feature.link {
-                                *link = prefix_internal_path(link, &locale.code, &all_locales);
+                            if let Some(ref mut url) = feature.url {
+                                *url = prefix_internal_path(url, &locale.code, &all_locales);
                             }
                         }
                     }
                 }
 
                 // Git timestamps
-                if self.config.theme.last_updated {
+                if self.config.theme.show_git_updated_at {
                     for page in &mut br.pages {
                         let file_path = locale_docs.join(&page.route.relative_path);
-                        page.last_updated = get_git_last_updated(&file_path);
+                        page.git_updated_at = get_git_updated_at(&file_path);
                     }
                 }
 
                 // Prefix sidebar keys
-                let locale_sidebar: HashMap<String, Vec<SidebarItem>> = br
-                    .sidebar
-                    .into_iter()
-                    .map(|(k, v)| (format!("{}{}", prefix, k), v))
-                    .collect();
+                let locale_sidebar = prefix_sidebar_map(br.sidebar, &prefix);
+                let locale_nav = prefix_nav_items(br.nav, &prefix);
 
                 all_pages.extend(br.pages);
                 if locale.code == i18n.default_locale {
-                    merged_nav = br.nav;
+                    merged_nav = locale_nav;
                 }
                 merged_sidebar.extend(locale_sidebar);
             }
@@ -488,10 +486,10 @@ impl Novel for DirNovel {
             )?;
 
             // Git timestamps (DirNovel-specific)
-            if self.config.theme.last_updated {
+            if self.config.theme.show_git_updated_at {
                 for page in &mut br.pages {
                     let file_path = docs_root.join(&page.route.relative_path);
-                    page.last_updated = get_git_last_updated(&file_path);
+                    page.git_updated_at = get_git_updated_at(&file_path);
                 }
             }
 
@@ -508,8 +506,7 @@ impl Novel for DirNovel {
         let plugins = std::mem::take(&mut self.plugins);
 
         // General-SSG post-processing: discover collections, filter, build
-        // list/term pages. A malformed `_collection.toml` is now a hard
-        // error (was silently replaced with defaults pre-F11).
+        // list/term pages.
         let collections = content::discover_collections(&docs_root)?;
         let (mut all_pages, list_pages, terms_pages) =
             post_process_general(&self.config, all_pages, &collections);
@@ -596,8 +593,8 @@ impl<E: Embed + Send + Sync + 'static> EmbedNovel<E> {
         self
     }
 
-    pub fn out_dir(mut self, dir: impl Into<String>) -> Self {
-        self.config.out_dir = dir.into();
+    pub fn output_dir(mut self, dir: impl Into<String>) -> Self {
+        self.config.output_dir = dir.into();
         self
     }
 
@@ -755,6 +752,30 @@ fn rewrite_locale_links_in_html(
         .into_owned()
 }
 
+fn rewrite_base_links_in_html(html: &str, base: &str) -> String {
+    let normalized_base = util::join_base_path(base, "/");
+    let base_prefix = normalized_base.trim_end_matches('/');
+    if base_prefix.is_empty() || base_prefix == "/" {
+        return html.to_string();
+    }
+
+    use std::sync::LazyLock;
+    static HREF_OR_SRC_RE: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r#"(href|src)="(/[^"]*)""#).expect("valid regex"));
+    HREF_OR_SRC_RE
+        .replace_all(html, |caps: &regex::Captures| {
+            let attr = caps.get(1).expect("group 1").as_str();
+            let path = caps.get(2).expect("group 2").as_str();
+            let new_path = if path == base_prefix || path.starts_with(&format!("{base_prefix}/")) {
+                path.to_string()
+            } else {
+                util::join_base_path(base, path)
+            };
+            format!(r#"{}="{}""#, attr, new_path)
+        })
+        .into_owned()
+}
+
 fn version_dir(version: &VersionConfig) -> String {
     if version.dir.trim().is_empty() {
         version.code.clone()
@@ -860,11 +881,11 @@ fn config_for_locale(config: &SiteConfig, locale: &LocaleConfig) -> SiteConfig {
         if let Some(ref footer) = theme_overrides.footer {
             locale_config.theme.footer = Some(footer.clone());
         }
-        if let Some(ref text) = theme_overrides.edit_link_text {
-            locale_config.theme.edit_link_text = Some(text.clone());
+        if let Some(ref text) = theme_overrides.edit_text {
+            locale_config.theme.edit_text = Some(text.clone());
         }
-        if let Some(ref text) = theme_overrides.last_updated_text {
-            locale_config.theme.last_updated_text = Some(text.clone());
+        if let Some(ref text) = theme_overrides.git_updated_text {
+            locale_config.theme.git_updated_text = Some(text.clone());
         }
     }
 
@@ -885,7 +906,7 @@ fn prefix_route(prefix: &str, route: &str) -> String {
 fn prefix_nav_items(nav: Vec<NavItem>, prefix: &str) -> Vec<NavItem> {
     nav.into_iter()
         .map(|mut item| {
-            item.link = prefix_version_path(&item.link, prefix, &[]);
+            item.url = prefix_version_path(&item.url, prefix, &[]);
             if let Some(ref mut active_match) = item.active_match {
                 *active_match = prefix_version_path(active_match, prefix, &[]);
             }
@@ -916,9 +937,9 @@ fn prefix_sidebar_items(items: Vec<SidebarItem>, prefix: &str) -> Vec<SidebarIte
     items
         .into_iter()
         .map(|item| match item {
-            SidebarItem::Link { text, link } => SidebarItem::Link {
+            SidebarItem::Link { text, url } => SidebarItem::Link {
                 text,
-                link: prefix_version_path(&link, prefix, &[]),
+                url: prefix_version_path(&url, prefix, &[]),
             },
             SidebarItem::Group {
                 text,
@@ -945,13 +966,13 @@ fn apply_version_scope(
         page.route.route_path = prefix_route(prefix, &page.route.route_path);
 
         if let Some(ref mut prev) = page.prev_page {
-            prev.link = prefix_route(prefix, &prev.link);
+            prev.url = prefix_route(prefix, &prev.url);
         }
         if let Some(ref mut next) = page.next_page {
-            next.link = prefix_route(prefix, &next.link);
+            next.url = prefix_route(prefix, &next.url);
         }
         for crumb in &mut page.breadcrumbs {
-            crumb.link = prefix_route(prefix, &crumb.link);
+            crumb.url = prefix_route(prefix, &crumb.url);
         }
 
         if !prefix.is_empty() {
@@ -964,13 +985,13 @@ fn apply_version_scope(
                 && let Some(ref mut actions) = hero.actions
             {
                 for action in actions {
-                    action.link = prefix_version_path(&action.link, prefix, known_prefixes);
+                    action.url = prefix_version_path(&action.url, prefix, known_prefixes);
                 }
             }
             if let Some(ref mut features) = page.frontmatter.features {
                 for feature in features {
-                    if let Some(ref mut link) = feature.link {
-                        *link = prefix_version_path(link, prefix, known_prefixes);
+                    if let Some(ref mut url) = feature.url {
+                        *url = prefix_version_path(url, prefix, known_prefixes);
                     }
                 }
             }
@@ -1107,7 +1128,7 @@ fn populate_version_links(pages: &mut [PageData], versions: Option<&VersioningCo
                 .get(code)
                 .cloned()
                 .unwrap_or_else(|| code.to_string()),
-            link: page.route.route_path.clone(),
+            url: page.route.route_path.clone(),
             current: false,
         });
     }
@@ -1201,17 +1222,16 @@ impl BuiltSite {
     /// Render a single page to a full HTML string.
     ///
     /// Layout dispatch:
-    /// 1. `page_type: home` or `layout: "home"` → home template
+    /// 1. `layout: "home"` → home template
     /// 2. `layout: "page"` → full-width page template (no sidebar/TOC)
     /// 3. `layout: "blog"` → centered blog template with date header
     /// 4. Everything else → doc template (sidebar + TOC)
     pub fn render_page(&self, page: &PageData) -> Result<String> {
-        let is_home = matches!(page.frontmatter.page_type, Some(PageType::Home));
         let layout = page.frontmatter.layout.as_deref();
 
         // Each branch returns a NovelResult<String>; `?` converts to anyhow
         // via the blanket From<E: std::error::Error> impl.
-        let html = if is_home || layout == Some("home") {
+        let html = if layout == Some("home") {
             self.engine.render_home(page, &self.config, &self.nav)?
         } else if layout == Some("page") {
             self.engine
@@ -1228,7 +1248,7 @@ impl BuiltSite {
             self.engine
                 .render_doc(page, &self.config, &self.nav, sidebar_items)?
         };
-        Ok(html)
+        Ok(rewrite_base_links_in_html(&html, &self.config.base))
     }
 
     /// Pre-resolve the longest-prefix-match sidebar key for every page
@@ -1258,7 +1278,8 @@ impl BuiltSite {
 
     /// Render the 404 page.
     pub fn render_404(&self) -> Result<String> {
-        Ok(self.engine.render_404(&self.config, &self.nav)?)
+        let html = self.engine.render_404(&self.config, &self.nav)?;
+        Ok(rewrite_base_links_in_html(&html, &self.config.base))
     }
 
     // -- static assets ------------------------------------------------------
@@ -1378,12 +1399,14 @@ impl BuiltSite {
 
         // List pages (collections + taxonomy terms, paginated)
         for lp in &self.list_pages {
-            let html = self.engine.render_list(
+            let html = self.engine.render_list_with_template(
+                &lp.template_name,
                 lp.title.clone(),
                 &lp.paginator,
                 &self.config,
                 &self.nav,
             )?;
+            let html = rewrite_base_links_in_html(&html, &self.config.base);
             let out_path = route_to_file_path(output_dir, &lp.route_path)?;
             if let Some(parent) = out_path.parent() {
                 std::fs::create_dir_all(parent)?;
@@ -1397,6 +1420,7 @@ impl BuiltSite {
             let html =
                 self.engine
                     .render_terms(tp.title.clone(), &tp.terms, &self.config, &self.nav)?;
+            let html = rewrite_base_links_in_html(&html, &self.config.base);
             let out_path = route_to_file_path(output_dir, &tp.route_path)?;
             if let Some(parent) = out_path.parent() {
                 std::fs::create_dir_all(parent)?;
@@ -1426,6 +1450,18 @@ impl BuiltSite {
         // i18n root redirect
         if let Some(ref i18n) = self.config.i18n {
             let default_locale = &i18n.default_locale;
+            let locale_codes: Vec<String> = i18n
+                .locales
+                .iter()
+                .map(|locale| locale.code.to_lowercase())
+                .collect();
+            let locales_json = serde_json::to_string(&locale_codes)?;
+            let default_locale_json = serde_json::to_string(default_locale)?;
+            let base_path = util::join_base_path(&self.config.base, "/");
+            let base_path_json = serde_json::to_string(&base_path)?;
+            let default_locale_url =
+                util::join_base_path(&self.config.base, &format!("/{default_locale}/"));
+            let default_locale_html = util::html_escape(&default_locale_url);
             let redirect_html = format!(
                 r#"<!DOCTYPE html>
 <html>
@@ -1433,20 +1469,20 @@ impl BuiltSite {
 <meta charset="UTF-8">
 <script>
 var lang = navigator.language || navigator.userLanguage || '';
-var locales = [{}];
+var locales = {locales_json};
+var defaultLocale = {default_locale_json};
+var basePath = {base_path_json};
 var match = locales.find(function(l) {{ return lang.toLowerCase().startsWith(l); }});
-window.location.replace('/' + (match || '{}') + '/');
+window.location.replace(basePath.replace(/\/?$/, '/') + (match || defaultLocale) + '/');
 </script>
-<meta http-equiv="refresh" content="0; url=/{default_locale}/">
+<meta http-equiv="refresh" content="0; url={default_locale_html}">
 </head>
 <body><p>Redirecting...</p></body>
 </html>"#,
-                i18n.locales
-                    .iter()
-                    .map(|l| format!("'{}'", l.code))
-                    .collect::<Vec<_>>()
-                    .join(","),
-                default_locale,
+                locales_json = locales_json,
+                default_locale_json = default_locale_json,
+                base_path_json = base_path_json,
+                default_locale_html = default_locale_html,
             );
             std::fs::write(output_dir.join("index.html"), redirect_html)?;
         }
@@ -1454,7 +1490,7 @@ window.location.replace('/' + (match || '{}') + '/');
         // Sass + image asset pipelines (no-op when feature/config disabled)
         if let Some(ref root) = self.project_root {
             assets::sass::compile(&self.config.sass, root, output_dir)?;
-            let docs_root = self.config.docs_root(root);
+            let docs_root = self.config.docs_root_checked(root)?;
             assets::images::process(&self.config.images, &docs_root, output_dir)?;
         }
 
@@ -1477,11 +1513,11 @@ window.location.replace('/' + (match || '{}') + '/');
         Ok(())
     }
 
-    /// Convenience: write to the configured `out_dir` relative to `project_root`.
+    /// Convenience: write to the configured `output_dir` relative to `project_root`.
     pub fn write_to_default_output(&self) -> Result<()> {
         let dir = match &self.project_root {
-            Some(root) => self.config.output_dir(root),
-            None => PathBuf::from(&self.config.out_dir),
+            Some(root) => self.config.output_dir_checked(root)?,
+            None => self.config.output_dir_checked(Path::new("."))?,
         };
         self.write_to(dir)
     }
@@ -1489,14 +1525,7 @@ window.location.replace('/' + (match || '{}') + '/');
     /// Copy non-content, non-meta static assets from the docs source.
     fn copy_static_assets(&self, output_dir: &Path) -> Result<()> {
         for file_path in self.source.list_files() {
-            if file_path.ends_with(".md") || file_path.ends_with(".typ") {
-                continue;
-            }
-            let file_name = Path::new(&file_path)
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("");
-            if file_name == "_meta.json" {
+            if !is_public_static_asset(&file_path) {
                 continue;
             }
 
@@ -1511,11 +1540,39 @@ window.location.replace('/' + (match || '{}') + '/');
     }
 }
 
+fn is_public_static_asset(file_path: &str) -> bool {
+    let path = Path::new(file_path);
+    if file_path.ends_with(".md") || file_path.ends_with(".typ") {
+        return false;
+    }
+
+    if path
+        .components()
+        .next()
+        .and_then(|component| component.as_os_str().to_str())
+        == Some("data")
+    {
+        return false;
+    }
+
+    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    if file_name == "_collection.toml" || file_name == "_meta.json" {
+        return false;
+    }
+
+    let ext = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
+    if file_name.starts_with('_') && matches!(ext, "json" | "toml" | "yaml" | "yml") {
+        return false;
+    }
+
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        prefix_internal_path, prefix_version_path, rewrite_locale_links_in_html,
-        version_route_prefix,
+        is_public_static_asset, prefix_internal_path, prefix_version_path,
+        rewrite_base_links_in_html, rewrite_locale_links_in_html, version_route_prefix,
     };
 
     fn locales() -> Vec<String> {
@@ -1586,6 +1643,16 @@ mod tests {
     }
 
     #[test]
+    fn rewrite_base_links_prefixes_without_doubling() {
+        let input = r#"<a href="/guide/x">a</a> <img src="/docs/logo.png">"#;
+        let out = rewrite_base_links_in_html(input, "/docs/");
+        assert_eq!(
+            out,
+            r#"<a href="/docs/guide/x">a</a> <img src="/docs/logo.png">"#
+        );
+    }
+
+    #[test]
     fn version_prefix_defaults_current_to_unprefixed() {
         let versions = novel_shared::config::VersioningConfig {
             current: "v2".to_string(),
@@ -1625,5 +1692,15 @@ mod tests {
             prefix_version_path("https://example.com", "/v1", &known),
             "https://example.com"
         );
+    }
+
+    #[test]
+    fn static_asset_filter_skips_internal_control_files() {
+        assert!(!is_public_static_asset("guide/intro.md"));
+        assert!(!is_public_static_asset("data/authors.toml"));
+        assert!(!is_public_static_asset("posts/_collection.toml"));
+        assert!(!is_public_static_asset("guide/_meta.json"));
+        assert!(is_public_static_asset("images/logo.png"));
+        assert!(is_public_static_asset("_headers"));
     }
 }

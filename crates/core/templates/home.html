@@ -8,7 +8,7 @@
     <section class="hero">
         {% if page.frontmatter.hero.image %}
         <div class="hero-image">
-            <img src="{{ page.frontmatter.hero.image.src }}" alt="{{ page.frontmatter.hero.image.alt | default('') }}">
+            <img src="{{ route_url(page.frontmatter.hero.image.src) }}" alt="{{ page.frontmatter.hero.image.alt | default('') }}">
         </div>
         {% endif %}
         <h1 class="hero-name">{{ page.frontmatter.hero.name }}</h1>
@@ -21,7 +21,7 @@
         {% if page.frontmatter.hero.actions %}
         <div class="hero-actions">
             {% for action in page.frontmatter.hero.actions %}
-            <a href="{{ action.link }}" class="hero-action {{ action.theme | default('brand') }}">{{ action.text }}</a>
+            <a href="{{ route_url(action.url) }}" class="hero-action {{ action.theme | default('brand') }}">{{ action.text }}</a>
             {% endfor %}
         </div>
         {% endif %}
@@ -32,13 +32,13 @@
     <section class="features">
         <div class="features-grid">
             {% for feature in page.frontmatter.features %}
-            <div class="feature-card"{% if feature.link %} onclick="window.location='{{ feature.link }}'" style="cursor:pointer"{% endif %}>
+            {% if feature.url %}<a class="feature-card" href="{{ route_url(feature.url) }}">{% else %}<div class="feature-card">{% endif %}
                 {% if feature.icon %}
                 <div class="feature-icon">{{ feature.icon }}</div>
                 {% endif %}
                 <h3 class="feature-title">{{ feature.title }}</h3>
                 <p class="feature-details">{{ feature.details }}</p>
-            </div>
+            {% if feature.url %}</a>{% else %}</div>{% endif %}
             {% endfor %}
         </div>
     </section>

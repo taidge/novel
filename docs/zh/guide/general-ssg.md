@@ -1,3 +1,8 @@
+---
+title: 通用 SSG 模式
+description: 使用 Novel 构建博客、营销页、作品集和其他内容型站点。
+---
+
 # 通用 SSG 模式
 
 除了文档站点之外,Novel 还可以构建博客、营销页、作品集以及其他内容型站点。通用 SSG 相关特性是**可选启用**的,叠加在现有的文档站点体验之上,而不会破坏它。
@@ -21,9 +26,9 @@ docs/
 ```toml
 layout = "blog"             # 条目的默认布局
 list_layout = "list"        # /posts/ 索引页的布局
-sort_by = "date"            # date | weight | title
+sort_by = "published_at"    # published_at | weight | title
 order = "desc"              # desc | asc
-paginate_by = 10            # 0 表示禁用分页
+per_page = 10               # 省略则不分页
 publish = true
 ```
 
@@ -40,16 +45,17 @@ dist/posts/page/2/index.html           # 第 2 页
 ```yaml
 ---
 title: Hello World
-date: 2026-04-01
-updated: 2026-04-07
+published_at: 2026-04-01
+updated_at: 2026-04-07
 draft: false
 weight: 10
 summary: Optional manual summary
-tags: [novel, intro]
-categories: [news]
+taxonomies:
+  tags: [novel, intro]
+  categories: [news]
 series: novel-internals
 authors: [chris]
-expiry_date: 2027-01-01
+expires_at: 2027-01-01
 ---
 
 在列表页中显示的引言段落。
@@ -61,23 +67,22 @@ expiry_date: 2027-01-01
 
 | 字段 | 类型 | 描述 |
 |---|---|---|
-| `date` | `YYYY-MM-DD` | 发布日期 —— 用于排序、归档、订阅源 |
-| `updated` | `YYYY-MM-DD` | 最后更新日期 —— 通过 OG `article:modified_time` 暴露 |
+| `published_at` | `YYYY-MM-DD` | 发布日期 —— 用于排序、归档、订阅源 |
+| `updated_at` | `YYYY-MM-DD` | 最后更新日期 —— 通过 OG `article:modified_time` 暴露 |
 | `draft` | bool | 构建时排除,除非使用 `--drafts` |
 | `weight` | int | 当 `sort_by = "weight"` 时用作排序键 |
 | `summary` | string | 手动摘要(覆盖 `<!-- more -->` 提取) |
-| `tags` | list | 分类条目(见下文) |
-| `categories` | list | 分类条目 |
+| `taxonomies` | map | 按已配置分类 key 组织的分类条目 |
 | `series` | string | 系列标识符 —— 生成 `/series/<slug>/` |
 | `authors` | list | 作者名 —— 通过 OG `article:author` 暴露 |
-| `expiry_date` | `YYYY-MM-DD` | 该日期之后页面被排除,除非使用 `--future` |
+| `expires_at` | `YYYY-MM-DD` | 该日期之后页面被排除,除非使用 `--future` |
 
 ## 草稿和未来日期的内容
 
 ```bash
 novel build              # 排除草稿和未来日期的页面
 novel build --drafts     # 包含 draft: true 的页面
-novel build --future     # 包含 date > 今天 的页面
+novel build --future     # 包含 published_at > 今天 的页面
 ```
 
 同样的开关也可以通过配置设置:
@@ -106,12 +111,10 @@ summary_separator = "<!-- more -->"
 
 ```toml
 [taxonomies.tags]
-name = "Tags"
 
 [taxonomies.categories]
-name = "Categories"
 permalink = "/cat/{slug}/"   # 可选,默认为 /<key>/<slug>/
-paginate_by = 10              # 可选,默认不分页
+per_page = 10              # 可选,默认不分页
 ```
 
 Novel 会为每个分类生成:
@@ -139,11 +142,11 @@ first_page_in_root = true      # /posts/ 而不是 /posts/page/1/
 dist/series/<slug>/index.html
 ```
 
-条目按**日期升序**排序,这样阅读顺序才合理。
+条目按 **published_at 升序**排序,这样阅读顺序才合理。
 
 ## 日期归档
 
-所有设置了 `date` 的页面都会被自动分组:
+所有设置了 `published_at` 的页面都会被自动分组:
 
 ```
 dist/archive/2026/index.html         # 年度归档
@@ -185,7 +188,7 @@ url = "https://example.com/chris"
 | `feed.json` | 站点范围的 JSON Feed v1.1 |
 | `<collection>/feed.xml` | 每个集合一个 Atom feed |
 
-每个集合的订阅源会使用 `page.date` 和 `summary_html`,使条目更丰富。
+每个集合的订阅源会使用 `page.published_at` 和 `summary_html`,使条目更丰富。
 
 ## Shortcode(模板辅助函数)
 
@@ -243,10 +246,10 @@ quality = 82
 
 | OG meta | 来源 |
 |---|---|
-| `article:published_time` | `frontmatter.date` |
-| `article:modified_time` | `frontmatter.updated` |
+| `article:published_time` | `frontmatter.published_at` |
+| `article:modified_time` | `frontmatter.updated_at` |
 | `article:author`(每个作者一个) | `frontmatter.authors` |
-| `article:tag`(每个标签一个) | `frontmatter.tags` |
+| `article:tag`(每个标签一个) | `frontmatter.taxonomies.tags` |
 
 ## 主题包
 

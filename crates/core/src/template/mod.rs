@@ -19,7 +19,7 @@ use crate::{CSS_CONTENT, JS_CONTENT};
 pub struct TermSummary {
     pub name: String,
     pub slug: String,
-    pub link: String,
+    pub url: String,
     pub count: usize,
 }
 
@@ -33,8 +33,8 @@ pub struct RenderContext<'a> {
     pub toc: &'a [TocItem],
     pub edit_url: Option<String>,
     pub markdown_url: Option<String>,
-    pub edit_link_text: &'a str,
-    pub last_updated_text: &'a str,
+    pub edit_text: &'a str,
+    pub git_updated_text: &'a str,
     pub theme_css_overrides: Option<String>,
     pub custom_css_content: Option<String>,
     pub asset_css: &'a str,
@@ -133,8 +133,13 @@ impl TemplateEngine {
 
         // Load data files from <project_root>/<docs_root>/data/ if available.
         let site_data = match project_root {
-            Some(root) => crate::data::load_data(&root.join(&config.root))
-                .unwrap_or_else(|_| serde_json::Value::Object(Default::default())),
+            Some(root) => {
+                let docs_root = config
+                    .docs_root_checked(root)
+                    .map_err(|e| NovelError::Config(e.to_string()))?;
+                crate::data::load_data(&docs_root)
+                    .unwrap_or_else(|_| serde_json::Value::Object(Default::default()))
+            }
             None => serde_json::Value::Object(Default::default()),
         };
 
@@ -166,8 +171,8 @@ impl TemplateEngine {
     fn custom_css_content(&self, config: &SiteConfig) -> Option<String> {
         let css_path = config.theme.custom_css.as_deref()?;
         let full_path = match &self.project_root {
-            Some(root) => root.join(css_path),
-            None => PathBuf::from(css_path),
+            Some(root) => crate::util::safe_join_relative(root, Path::new(css_path)).ok()?,
+            None => crate::util::safe_join_relative(Path::new("."), Path::new(css_path)).ok()?,
         };
         std::fs::read_to_string(full_path).ok()
     }
@@ -181,14 +186,14 @@ impl TemplateEngine {
             toc: &[],
             edit_url: None,
             markdown_url: None,
-            edit_link_text: config
+            edit_text: config
                 .theme
-                .edit_link_text
+                .edit_text
                 .as_deref()
                 .unwrap_or("Edit this page"),
-            last_updated_text: config
+            git_updated_text: config
                 .theme
-                .last_updated_text
+                .git_updated_text
                 .as_deref()
                 .unwrap_or("Last updated"),
             theme_css_overrides: Self::css_overrides(config),
@@ -216,10 +221,21 @@ impl TemplateEngine {
         config: &SiteConfig,
         nav: &[NavItem],
     ) -> NovelResult<String> {
+        self.render_list_with_template("list.html", title, paginator, config, nav)
+    }
+
+    pub fn render_list_with_template(
+        &self,
+        template_name: &str,
+        title: String,
+        paginator: &Paginator,
+        config: &SiteConfig,
+        nav: &[NavItem],
+    ) -> NovelResult<String> {
         let mut ctx = self.base_context(config, nav);
         ctx.paginator = Some(paginator);
         ctx.list_title = Some(title);
-        self.renderer.render("list.html", &ctx)
+        self.renderer.render(template_name, &ctx)
     }
 
     /// Render a taxonomy overview page (e.g. /tags/).
@@ -249,7 +265,7 @@ impl TemplateEngine {
         nav: &[NavItem],
         sidebar: &[SidebarItem],
     ) -> NovelResult<String> {
-        let edit_url = config.theme.edit_link.as_ref().map(|pattern| {
+        let edit_url = config.theme.edit_url.as_ref().map(|pattern| {
             format!(
                 "{}{}",
                 pattern.trim_end_matches('/'),

@@ -1,3 +1,8 @@
+---
+title: 离线 / PWA
+description: 生成 PWA 资源,让 Novel 站点支持离线阅读。
+---
+
 # 离线 / PWA
 
 Novel 可以生成一个轻量的 Progressive Web App 外壳,用于离线阅读。

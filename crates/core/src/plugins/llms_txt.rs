@@ -2,7 +2,7 @@ use crate::plugin::{BuiltSiteView, Plugin};
 use crate::util::strip_html_tags;
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
-use novel_shared::{PageData, PageType};
+use novel_shared::PageData;
 use std::path::{Path, PathBuf};
 
 pub struct LlmsTxtPlugin;
@@ -18,9 +18,7 @@ impl Plugin for LlmsTxtPlugin {
 
         vec![
             ("llms.txt".to_string(), llms_txt.clone()),
-            ("llms-full.txt".to_string(), llms_full_txt.clone()),
-            (".well-known/llms.txt".to_string(), llms_txt),
-            (".well-known/llms-full.txt".to_string(), llms_full_txt),
+            ("llms-full.txt".to_string(), llms_full_txt),
         ]
     }
 }
@@ -98,7 +96,7 @@ pub fn generate_llms_full_txt(site: &BuiltSiteView) -> String {
         if !desc.is_empty() {
             out.push_str(&format!("Description: {}\n", desc));
         }
-        if let Some(date) = page.date.as_ref().or(page.last_updated.as_ref()) {
+        if let Some(date) = page.published_at.as_ref().or(page.git_updated_at.as_ref()) {
             out.push_str(&format!("Updated: {}\n", one_line(date)));
         }
 
@@ -130,11 +128,11 @@ pub(crate) fn is_public_page(page: &PageData) -> bool {
     if page.frontmatter.noindex || page.frontmatter.redirect.is_some() {
         return false;
     }
-    !matches!(page.frontmatter.page_type, Some(PageType::NotFound))
+    page.frontmatter.layout.as_deref() != Some("404")
 }
 
 fn page_title(site: &BuiltSiteView, page: &PageData) -> String {
-    if matches!(page.frontmatter.page_type, Some(PageType::Home)) {
+    if page.frontmatter.layout.as_deref() == Some("home") {
         return page
             .frontmatter
             .hero
@@ -177,7 +175,7 @@ pub(crate) fn page_source_path(site: &BuiltSiteView, page: &PageData) -> Option<
     }
 
     let project_root = site.project_root?;
-    let mut source_root = project_root.join(&site.config.root);
+    let mut source_root = site.config.docs_root_checked(project_root).ok()?;
 
     if let (Some(versions), Some(version_code)) =
         (&site.config.versions, page.route.version.as_deref())
@@ -191,7 +189,7 @@ pub(crate) fn page_source_path(site: &BuiltSiteView, page: &PageData) -> Option<
         } else {
             &version.dir
         };
-        source_root.push(dir);
+        source_root = crate::util::safe_join_relative(&source_root, Path::new(dir)).ok()?;
     }
 
     if let (Some(i18n), Some(locale_code)) = (&site.config.i18n, page.route.locale.as_deref()) {
@@ -199,10 +197,10 @@ pub(crate) fn page_source_path(site: &BuiltSiteView, page: &PageData) -> Option<
             .locales
             .iter()
             .find(|locale| locale.code == locale_code)?;
-        source_root.push(&locale.dir);
+        source_root = crate::util::safe_join_relative(&source_root, Path::new(&locale.dir)).ok()?;
     }
 
-    Some(source_root.join(Path::new(&page.route.relative_path)))
+    crate::util::safe_join_relative(&source_root, Path::new(&page.route.relative_path)).ok()
 }
 
 pub(crate) fn markdown_without_frontmatter(raw: &str) -> String {
@@ -215,37 +213,17 @@ pub(crate) fn markdown_without_frontmatter(raw: &str) -> String {
 
 pub(crate) fn page_url(site: &BuiltSiteView, route_path: &str) -> String {
     if let Some(site_url) = site.config.site_url.as_deref() {
-        let base = site_url.trim_end_matches('/');
-        if route_path == "/" {
-            format!("{}/", base)
-        } else {
-            format!("{}{}", base, route_path)
-        }
+        crate::util::join_site_url(site_url, &site.config.base, route_path)
     } else {
-        join_base_path(&site.config.base, route_path)
+        crate::util::join_base_path(&site.config.base, route_path)
     }
 }
 
 fn site_resource_url(site: &BuiltSiteView, resource_path: &str) -> String {
     if let Some(site_url) = site.config.site_url.as_deref() {
-        format!("{}{}", site_url.trim_end_matches('/'), resource_path)
+        crate::util::join_site_url(site_url, &site.config.base, resource_path)
     } else {
-        join_base_path(&site.config.base, resource_path)
-    }
-}
-
-pub(crate) fn join_base_path(base: &str, path: &str) -> String {
-    let mut normalized_base = base.trim().trim_end_matches('/').to_string();
-    if normalized_base.is_empty() || normalized_base == "/" {
-        return path.to_string();
-    }
-    if !normalized_base.starts_with('/') {
-        normalized_base.insert(0, '/');
-    }
-    if path == "/" {
-        format!("{}/", normalized_base)
-    } else {
-        format!("{}{}", normalized_base, path)
+        crate::util::join_base_path(&site.config.base, resource_path)
     }
 }
 
@@ -290,7 +268,7 @@ mod tests {
             content_html: "<p>Rendered fallback</p>".to_string(),
             toc: Vec::new(),
             frontmatter: FrontMatter::default(),
-            last_updated: None,
+            git_updated_at: None,
             prev_page: None,
             next_page: None,
             reading_time: None,
@@ -298,7 +276,7 @@ mod tests {
             breadcrumbs: Vec::new(),
             summary_html: None,
             collection: None,
-            date: None,
+            published_at: None,
             translations: Vec::new(),
             version_links: Vec::new(),
         }
@@ -365,7 +343,7 @@ mod tests {
     fn home_pages_use_hero_title_and_tagline() {
         let config = SiteConfig::default();
         let mut home = page("/", "index.md", "index");
-        home.frontmatter.page_type = Some(PageType::Home);
+        home.frontmatter.layout = Some("home".to_string());
         home.frontmatter.hero = Some(novel_shared::Hero {
             name: "Novel".to_string(),
             text: None,
@@ -402,7 +380,7 @@ mod tests {
         .expect("write test markdown");
 
         let config = SiteConfig {
-            root: "docs".to_string(),
+            docs_dir: "docs".to_string(),
             ..SiteConfig::default()
         };
         let pages = vec![page("/guide/intro", "guide/intro.md", "Intro")];
@@ -425,7 +403,7 @@ mod tests {
     }
 
     #[test]
-    fn plugin_writes_root_and_well_known_files() {
+    fn plugin_writes_root_files() {
         let config = SiteConfig::default();
         let pages = vec![page("/", "index.md", "Home")];
         let nav = Vec::new();
@@ -441,15 +419,7 @@ mod tests {
         let outputs = LlmsTxtPlugin.on_build_complete(&site);
         let names: Vec<&str> = outputs.iter().map(|(name, _)| name.as_str()).collect();
 
-        assert_eq!(
-            names,
-            vec![
-                "llms.txt",
-                "llms-full.txt",
-                ".well-known/llms.txt",
-                ".well-known/llms-full.txt"
-            ]
-        );
+        assert_eq!(names, vec!["llms.txt", "llms-full.txt"]);
     }
 
     fn unique_temp_dir() -> PathBuf {

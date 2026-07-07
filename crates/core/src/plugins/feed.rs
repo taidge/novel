@@ -1,5 +1,5 @@
 use crate::plugin::{BuiltSiteView, Plugin};
-use novel_shared::{PageData, PageType};
+use novel_shared::PageData;
 use std::collections::BTreeSet;
 
 pub struct FeedPlugin;
@@ -46,14 +46,9 @@ pub fn generate_json_feed(site: &BuiltSiteView) -> Option<String> {
     let items: Vec<serde_json::Value> = site
         .pages
         .iter()
-        .filter(|p| {
-            !matches!(
-                p.frontmatter.page_type,
-                Some(PageType::Home) | Some(PageType::NotFound)
-            )
-        })
+        .filter(|p| !matches!(p.frontmatter.layout.as_deref(), Some("home") | Some("404")))
         .map(|p| {
-            let url = format!("{}{}", base_url, p.route.route_path);
+            let url = crate::util::join_site_url(base_url, &site.config.base, &p.route.route_path);
             let mut item = serde_json::json!({
                 "id": url,
                 "url": url,
@@ -65,11 +60,13 @@ pub fn generate_json_feed(site: &BuiltSiteView) -> Option<String> {
             if let Some(ref s) = p.summary_html {
                 item["content_html"] = serde_json::Value::String(s.clone());
             }
-            if let Some(ref d) = p.date.as_ref().or(p.last_updated.as_ref()) {
+            if let Some(ref d) = p.published_at.as_ref().or(p.git_updated_at.as_ref()) {
                 item["date_published"] = serde_json::Value::String(format!("{}T00:00:00Z", d));
             }
-            if !p.frontmatter.tags.is_empty() {
-                item["tags"] = serde_json::Value::from(p.frontmatter.tags.clone());
+            if let Some(tags) = p.frontmatter.taxonomies.get("tags")
+                && !tags.is_empty()
+            {
+                item["tags"] = serde_json::Value::from(tags.clone());
             }
             item
         })
@@ -79,8 +76,8 @@ pub fn generate_json_feed(site: &BuiltSiteView) -> Option<String> {
         "version": "https://jsonfeed.org/version/1.1",
         "title": site.config.title,
         "description": site.config.description,
-        "home_page_url": format!("{}/", base_url),
-        "feed_url": format!("{}/feed.json", base_url),
+        "home_page_url": crate::util::join_site_url(base_url, &site.config.base, "/"),
+        "feed_url": crate::util::join_site_url(base_url, &site.config.base, "/feed.json"),
         "items": items,
     });
     serde_json::to_string_pretty(&feed).ok()
@@ -102,29 +99,31 @@ pub fn generate_feed_xml(site: &BuiltSiteView) -> Option<String> {
         "  <subtitle>{}</subtitle>\n",
         xml_escape(&site.config.description)
     ));
+    let home_url = crate::util::join_site_url(base_url, &site.config.base, "/");
+    let feed_url = crate::util::join_site_url(base_url, &site.config.base, "/feed.xml");
     xml.push_str(&format!(
-        "  <link href=\"{}/\" rel=\"alternate\"/>\n",
-        base_url
+        "  <link href=\"{}\" rel=\"alternate\"/>\n",
+        xml_escape(&home_url)
     ));
     xml.push_str(&format!(
-        "  <link href=\"{}/feed.xml\" rel=\"self\"/>\n",
-        base_url
+        "  <link href=\"{}\" rel=\"self\"/>\n",
+        xml_escape(&feed_url)
     ));
-    xml.push_str(&format!("  <id>{}/</id>\n", base_url));
+    xml.push_str(&format!("  <id>{}</id>\n", xml_escape(&home_url)));
 
     for page in site.pages {
         if matches!(
-            page.frontmatter.page_type,
-            Some(PageType::Home) | Some(PageType::NotFound)
+            page.frontmatter.layout.as_deref(),
+            Some("home") | Some("404")
         ) {
             continue;
         }
-        let url = format!("{}{}", base_url, page.route.route_path);
+        let url = crate::util::join_site_url(base_url, &site.config.base, &page.route.route_path);
         xml.push_str("  <entry>\n");
         xml.push_str(&format!("    <title>{}</title>\n", xml_escape(&page.title)));
-        xml.push_str(&format!("    <link href=\"{}\"/>\n", url));
-        xml.push_str(&format!("    <id>{}</id>\n", url));
-        if let Some(ref date) = page.last_updated {
+        xml.push_str(&format!("    <link href=\"{}\"/>\n", xml_escape(&url)));
+        xml.push_str(&format!("    <id>{}</id>\n", xml_escape(&url)));
+        if let Some(ref date) = page.git_updated_at {
             xml.push_str(&format!("    <updated>{}T00:00:00Z</updated>\n", date));
         }
         if !page.description.is_empty() {
@@ -160,25 +159,32 @@ pub fn generate_collection_feed_xml(site: &BuiltSiteView, collection: &str) -> O
     let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     xml.push_str("<feed xmlns=\"http://www.w3.org/2005/Atom\">\n");
     xml.push_str(&format!("  <title>{}</title>\n", xml_escape(&title)));
+    let collection_home =
+        crate::util::join_site_url(base_url, &site.config.base, &format!("/{collection}/"));
+    let collection_feed = crate::util::join_site_url(
+        base_url,
+        &site.config.base,
+        &format!("/{collection}/feed.xml"),
+    );
     xml.push_str(&format!(
-        "  <link href=\"{}/{}/\" rel=\"alternate\"/>\n",
-        base_url, collection
+        "  <link href=\"{}\" rel=\"alternate\"/>\n",
+        xml_escape(&collection_home)
     ));
     xml.push_str(&format!(
-        "  <link href=\"{}/{}/feed.xml\" rel=\"self\"/>\n",
-        base_url, collection
+        "  <link href=\"{}\" rel=\"self\"/>\n",
+        xml_escape(&collection_feed)
     ));
-    xml.push_str(&format!("  <id>{}/{}/</id>\n", base_url, collection));
+    xml.push_str(&format!("  <id>{}</id>\n", xml_escape(&collection_home)));
 
     for page in entries {
-        let url = format!("{}{}", base_url, page.route.route_path);
+        let url = crate::util::join_site_url(base_url, &site.config.base, &page.route.route_path);
         xml.push_str("  <entry>\n");
         xml.push_str(&format!("    <title>{}</title>\n", xml_escape(&page.title)));
-        xml.push_str(&format!("    <link href=\"{}\"/>\n", url));
-        xml.push_str(&format!("    <id>{}</id>\n", url));
-        if let Some(ref date) = page.date {
+        xml.push_str(&format!("    <link href=\"{}\"/>\n", xml_escape(&url)));
+        xml.push_str(&format!("    <id>{}</id>\n", xml_escape(&url)));
+        if let Some(ref date) = page.published_at {
             xml.push_str(&format!("    <updated>{}T00:00:00Z</updated>\n", date));
-        } else if let Some(ref date) = page.last_updated {
+        } else if let Some(ref date) = page.git_updated_at {
             xml.push_str(&format!("    <updated>{}T00:00:00Z</updated>\n", date));
         }
         if let Some(ref summary) = page.summary_html {

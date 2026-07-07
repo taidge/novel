@@ -1,3 +1,8 @@
+---
+title: Configuration
+description: Configure Novel with novel.toml and understand the options that control site behavior.
+---
+
 # Configuration
 
 Novel is configured via a `novel.toml` file in your project root. All fields are optional and have sensible defaults.
@@ -12,10 +17,10 @@ title = "My Docs"
 description = "Documentation for my project"
 
 # Documentation root directory (relative to project root)
-root = "docs"
+docs_dir = "docs"
 
 # Output directory for the built site
-out_dir = "dist"
+output_dir = "dist"
 
 # Base URL path — set this when deploying to a subpath
 # e.g. "/docs/" for https://example.com/docs/
@@ -33,8 +38,6 @@ logo = "/logo.svg"
 # Path to favicon
 icon = "/favicon.ico"
 
-# Remove .html extensions from URLs
-clean_urls = false
 ```
 
 ## Markdown Options
@@ -61,21 +64,21 @@ dark_mode = true
 # Footer text (HTML is supported)
 footer = "Built with Novel | Apache 2.0 License"
 
-# Show git last-updated timestamps on pages
-last_updated = true
+# Show Git updated timestamps on pages
+show_git_updated_at = true
 
-# Custom text for the last-updated label
-last_updated_text = "Last updated"
+# Custom text for the Git updated timestamp label
+git_updated_text = "Last updated"
 
-# "Edit this page" link pattern
+# "Edit this page" URL prefix
 # The page's relative file path is appended to this URL
-edit_link = "https://github.com/user/repo/edit/main/docs/"
+edit_url = "https://github.com/user/repo/edit/main/docs/"
 
-# Custom text for the edit link
-edit_link_text = "Edit this page"
+# Custom text for the edit action
+edit_text = "Edit this page"
 
-# Source code repository link (shows GitHub icon in navbar)
-source_link = "https://github.com/user/repo"
+# Source code repository URL (shows GitHub icon in navbar)
+source_url = "https://github.com/user/repo"
 ```
 
 ### Navigation
@@ -85,15 +88,15 @@ By default, navigation is auto-generated from top-level directories in your docs
 ```toml title="novel.toml"
 [[theme.nav]]
 text = "Guide"
-link = "/guide/"
+url = "/guide/"
 
 [[theme.nav]]
 text = "API"
-link = "/api/"
+url = "/api/"
 
 [[theme.nav]]
 text = "Blog"
-link = "https://blog.example.com"
+url = "https://blog.example.com"
 ```
 
 ### Sidebar
@@ -105,12 +108,12 @@ By default, sidebar is auto-generated from the directory structure and `_meta.js
 [[theme.sidebar."/guide/"]]
 type = "link"
 text = "Getting Started"
-link = "/guide/getting-started"
+url = "/guide/getting-started"
 
 [[theme.sidebar."/guide/"]]
 type = "link"
 text = "Configuration"
-link = "/guide/configuration"
+url = "/guide/configuration"
 ```
 
 ### Social Links
@@ -118,11 +121,11 @@ link = "/guide/configuration"
 ```toml title="novel.toml"
 [[theme.social_links]]
 icon = "GitHub"
-link = "https://github.com/user/repo"
+url = "https://github.com/user/repo"
 
 [[theme.social_links]]
 icon = "Twitter"
-link = "https://twitter.com/user"
+url = "https://twitter.com/user"
 ```
 
 ### Banner
@@ -132,7 +135,7 @@ Display an announcement banner at the top of every page:
 ```toml title="novel.toml"
 [theme.banner]
 text = "Novel v1.0 is released!"
-link = "/guide/getting-started"
+url = "/guide/getting-started"
 dismissible = true
 ```
 
@@ -143,7 +146,7 @@ Novel can build blogs and content sites in addition to documentation. The follow
 ```toml
 [content]
 drafts = false                 # include draft: true pages
-future = false                 # include pages with date > today
+future = false                 # include pages with published_at > today
 summary_separator = "<!-- more -->"
 
 [pagination]
@@ -151,10 +154,8 @@ page_path = "page"             # /posts/page/2/
 first_page_in_root = true      # first page lives at /posts/
 
 [taxonomies.tags]
-name = "Tags"
 
 [taxonomies.categories]
-name = "Categories"
 
 # Theme pack: extra template loader path
 [theme]
@@ -224,8 +225,8 @@ question = "Was this page helpful?"
 positive_text = "Yes"
 negative_text = "No"
 thanks_text = "Thanks for the feedback."
-positive_link = "https://github.com/user/repo/discussions"
-negative_link = "https://github.com/user/repo/issues/new"
+positive_url = "https://github.com/user/repo/discussions"
+negative_url = "https://github.com/user/repo/issues/new"
 ```
 
 See [Page Feedback](./feedback).
@@ -247,8 +248,8 @@ templates/
 ```toml title="novel.toml"
 title = "My Project"
 description = "Documentation for My Project"
-root = "docs"
-out_dir = "dist"
+docs_dir = "docs"
+output_dir = "dist"
 base = "/"
 lang = "en"
 site_url = "https://my-project.dev"
@@ -262,20 +263,20 @@ check_dead_links = true
 [theme]
 dark_mode = true
 footer = "Copyright 2025 My Project"
-last_updated = true
-edit_link = "https://github.com/user/my-project/edit/main/docs/"
-source_link = "https://github.com/user/my-project"
+show_git_updated_at = true
+edit_url = "https://github.com/user/my-project/edit/main/docs/"
+source_url = "https://github.com/user/my-project"
 
 [[theme.nav]]
 text = "Guide"
-link = "/guide/"
+url = "/guide/"
 
 [[theme.nav]]
 text = "API"
-link = "/api/"
+url = "/api/"
 
 [theme.banner]
 text = "v1.0 is out!"
-link = "/guide/getting-started"
+url = "/guide/getting-started"
 dismissible = true
 ```

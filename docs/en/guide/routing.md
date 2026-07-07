@@ -1,3 +1,8 @@
+---
+title: Routing
+description: Understand Novel file-based routing, output paths, clean URLs, and redirects.
+---
+
 # Routing
 
 Novel uses file-based routing. Every `.md` file in your `docs/` directory automatically becomes a page.
@@ -73,7 +78,7 @@ To customise navigation, see the [Configuration](/guide/configuration) guide.
 
 ## Home Page
 
-The root `index.md` file is treated as the home page when it has `page_type: home` in its frontmatter. See [Home Page](/guide/home-page) for details.
+The root `index.md` file is treated as the home page when it has `layout: home` in its frontmatter. See [Home Page](/guide/home-page) for details.
 
 ## Static Assets
 

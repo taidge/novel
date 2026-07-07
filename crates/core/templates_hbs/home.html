@@ -9,7 +9,7 @@
     {{#if site.theme.banner}}
     <div class="banner" id="site-banner">
         <div class="banner-inner">
-            {{#if site.theme.banner.link}}<a href="{{ site.theme.banner.link }}">{{ site.theme.banner.text }}</a>{{else}}{{ site.theme.banner.text }}{{/if}}
+            {{#if site.theme.banner.url}}<a href="{{ site.theme.banner.url }}">{{ site.theme.banner.text }}</a>{{else}}{{ site.theme.banner.text }}{{/if}}
         </div>
         {{#if site.theme.banner.dismissible}}
         <button class="banner-close" onclick="dismissBanner()" aria-label="Dismiss">&times;</button>
@@ -40,7 +40,7 @@
                 {{#if page.frontmatter.hero.actions}}
                 <div class="hero-actions">
                     {{#each page.frontmatter.hero.actions}}
-                    <a href="{{ this.link }}" class="hero-action {{#if this.theme}}{{ this.theme }}{{else}}brand{{/if}}">{{ this.text }}</a>
+                    <a href="{{ this.url }}" class="hero-action {{#if this.theme}}{{ this.theme }}{{else}}brand{{/if}}">{{ this.text }}</a>
                     {{/each}}
                 </div>
                 {{/if}}
@@ -51,7 +51,7 @@
             <section class="features">
                 <div class="features-grid">
                     {{#each page.frontmatter.features}}
-                    <div class="feature-card"{{#if this.link}} onclick="window.location='{{ this.link }}'" style="cursor:pointer"{{/if}}>
+                    <div class="feature-card"{{#if this.url}} onclick="window.location='{{ this.url }}'" style="cursor:pointer"{{/if}}>
                         {{#if this.icon}}
                         <div class="feature-icon">{{{ this.icon }}}</div>
                         {{/if}}

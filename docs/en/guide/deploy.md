@@ -1,3 +1,8 @@
+---
+title: Deployment
+description: Deploy a built Novel site to static hosting providers and CI workflows.
+---
+
 # Deployment
 
 After running `novel build`, the `dist/` directory contains a fully static site that can be deployed anywhere.

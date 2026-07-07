@@ -1,3 +1,8 @@
+---
+title: 部署
+description: 将 Novel 构建产物部署到静态托管平台和 CI 流程。
+---
+
 # 部署
 
 运行 `novel build` 之后,`dist/` 目录包含一个完全静态的站点,可以部署到任何地方。

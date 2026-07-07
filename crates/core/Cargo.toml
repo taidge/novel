@@ -2,6 +2,10 @@
 name = "novel-core"
 version.workspace = true
 edition.workspace = true
+description = "Core static site generation engine for Novel."
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 [features]
 default = []
@@ -13,7 +17,7 @@ images = ["dep:image"]
 
 [dependencies]
 salvo = { workspace = true, optional = true }
-novel-shared = { path = "../shared" }
+novel-shared = { version = "0.1.0", path = "../shared" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 pulldown-cmark = { workspace = true }

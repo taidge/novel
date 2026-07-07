@@ -1,7 +1,6 @@
 use crate::plugin::{BuiltSiteView, Plugin};
 use crate::util::html_escape;
 use crate::{CSS_CONTENT, JS_CONTENT};
-use novel_shared::PageType;
 
 pub struct PwaPlugin;
 
@@ -71,7 +70,7 @@ fn generate_service_worker(site: &BuiltSiteView) -> String {
     for page in site.pages {
         if page.frontmatter.noindex
             || page.frontmatter.redirect.is_some()
-            || matches!(page.frontmatter.page_type, Some(PageType::NotFound))
+            || page.frontmatter.layout.as_deref() == Some("404")
         {
             continue;
         }
@@ -80,9 +79,13 @@ fn generate_service_worker(site: &BuiltSiteView) -> String {
     urls.sort();
     urls.dedup();
     let urls_json = serde_json::to_string(&urls).unwrap_or_else(|_| "[]".to_string());
+    let cache_name_json =
+        serde_json::to_string(&cache_name).unwrap_or_else(|_| "\"novel\"".to_string());
+    let offline_url_json = serde_json::to_string(&with_base(site, "offline.html"))
+        .unwrap_or_else(|_| "\"/offline.html\"".to_string());
 
     format!(
-        r#"const CACHE_NAME = {cache_name:?};
+        r#"const CACHE_NAME = {cache_name_json};
 const PRECACHE_URLS = {urls_json};
 
 self.addEventListener('install', event => {{
@@ -103,7 +106,7 @@ self.addEventListener('fetch', event => {{
       const copy = response.clone();
       caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
       return response;
-    }}).catch(() => caches.match(request).then(cached => cached || caches.match('{offline_url}'))));
+    }}).catch(() => caches.match(request).then(cached => cached || caches.match({offline_url_json}))));
     return;
   }}
   event.respondWith(caches.match(request).then(cached => cached || fetch(request).then(response => {{
@@ -113,9 +116,9 @@ self.addEventListener('fetch', event => {{
   }})));
 }});
 "#,
-        cache_name = cache_name,
+        cache_name_json = cache_name_json,
         urls_json = urls_json,
-        offline_url = with_base(site, "offline.html")
+        offline_url_json = offline_url_json
     )
 }
 
@@ -138,13 +141,7 @@ fn generate_offline_html(site: &BuiltSiteView) -> String {
 }
 
 fn with_base(site: &BuiltSiteView, path: &str) -> String {
-    let base = site.config.base.trim_end_matches('/');
-    let path = path.trim_start_matches('/');
-    if base.is_empty() {
-        format!("/{path}")
-    } else {
-        format!("{base}/{path}")
-    }
+    crate::util::join_base_path(&site.config.base, path)
 }
 
 fn css_filename(site: &BuiltSiteView) -> String {

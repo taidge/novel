@@ -1,3 +1,8 @@
+---
+title: Theming
+description: Customize Novel with theme options, CSS variables, custom CSS, and template overrides.
+---
+
 # Theming
 
 Novel ships with a clean, responsive default theme (dark mode included), and is designed so you can bend it as far as you like — from tweaking a color variable to shipping an entirely custom look as a reusable **theme pack**.
@@ -21,14 +26,14 @@ Most sites never need anything beyond the options under `[theme]`. All of these 
 [theme]
 dark_mode      = true
 footer         = "Copyright 2025 My Project | Built with Novel"
-edit_link      = "https://github.com/user/repo/edit/main/docs/"
-edit_link_text = "Edit this page on GitHub"
-last_updated   = true
-source_link    = "https://github.com/user/repo"
+edit_url      = "https://github.com/user/repo/edit/main/docs/"
+edit_text = "Edit this page on GitHub"
+git_updated_at   = true
+source_url    = "https://github.com/user/repo"
 
 [theme.banner]
 text        = "We just released v2.0!"
-link        = "/guide/changelog"
+url = "/guide/changelog"
 dismissible = true
 ```
 
@@ -202,13 +207,13 @@ Every template is handed this context:
 | Variable | Type | Description |
 |----------|------|-------------|
 | `site` | object | The full `SiteConfig` (`site.title`, `site.base`, `site.theme.*`, `site.markdown.*`, …) |
-| `page` | object or null | Current page (`page.title`, `page.content_html`, `page.frontmatter`, `page.toc`, `page.last_updated`, `page.prev_page`, `page.next_page`, `page.breadcrumbs`, …) |
+| `page` | object or null | Current page (`page.title`, `page.content_html`, `page.frontmatter`, `page.toc`, `page.git_updated_at`, `page.prev_page`, `page.next_page`, `page.breadcrumbs`, …) |
 | `nav` | array | Top-nav items |
 | `sidebar` | array | Sidebar items for the current section |
 | `toc` | array | Table of contents items for the current page |
 | `edit_url` | string or null | Computed "edit this page" URL |
-| `edit_link_text` | string | Label for the edit link |
-| `last_updated_text` | string | Label for the last-updated timestamp |
+| `edit_text` | string | Label for the edit link |
+| `git_updated_text` | string | Label for the last-updated timestamp |
 | `theme_css_overrides` | string or null | Rendered `[theme.colors]` as a CSS string |
 | `custom_css_content` | string or null | Inlined contents of `theme.custom_css` |
 | `asset_css` / `asset_js` | string | Hashed asset filenames when `asset_fingerprint` is on |
@@ -268,7 +273,7 @@ Each engine has its own built-in template set under `crates/core/templates_tera/
 
 ## 7. Custom assets (CSS / JS)
 
-The default stylesheet and JS are compiled into the binary as `style.css` and `main.js`, and written to `<out_dir>/assets/` on every build. You have three options for shipping additional assets:
+The default stylesheet and JS are compiled into the binary as `style.css` and `main.js`, and written to `<output_dir>/assets/` on every build. You have three options for shipping additional assets:
 
 1. **Custom CSS** (simplest, inlined into every page) — use `theme.custom_css`.
 2. **Static files** — drop files under `docs/` (or wherever `root` points) and reference them from templates. They're copied verbatim. See [Static Assets](./static-assets.md).

@@ -19,14 +19,29 @@ pub struct CollectionConfig {
     pub layout: String,
     /// Layout for the list (index) page
     pub list_layout: String,
-    /// Sort key: "date" | "weight" | "title"
-    pub sort_by: String,
-    /// "asc" | "desc"
-    pub order: String,
-    /// Items per page; 0 = no pagination
-    pub paginate_by: usize,
+    /// Sort key for entries.
+    pub sort_by: CollectionSortKey,
+    /// Sort direction for entries.
+    pub order: SortOrder,
+    /// Items per page. `None` means no pagination.
+    pub per_page: Option<usize>,
     /// Whether this collection is published in the build
     pub publish: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CollectionSortKey {
+    PublishedAt,
+    Weight,
+    Title,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SortOrder {
+    Asc,
+    Desc,
 }
 
 impl Default for CollectionConfig {
@@ -34,9 +49,9 @@ impl Default for CollectionConfig {
         Self {
             layout: "blog".to_string(),
             list_layout: "list".to_string(),
-            sort_by: "date".to_string(),
-            order: "desc".to_string(),
-            paginate_by: 10,
+            sort_by: CollectionSortKey::PublishedAt,
+            order: SortOrder::Desc,
+            per_page: None,
             publish: true,
         }
     }
@@ -52,10 +67,7 @@ pub struct Collection {
 /// Discover collections in the docs root by scanning for `_collection.toml`
 /// files at depth 1.
 ///
-/// A malformed `_collection.toml` is now a hard error
-/// ([`NovelError::Data`]) — previously the file was silently replaced
-/// with `CollectionConfig::default()`, which masked typos in user
-/// configs. (F11)
+/// A malformed `_collection.toml` is a hard data error.
 pub fn discover_collections(docs_root: &Path) -> NovelResult<HashMap<String, Collection>> {
     let mut out = HashMap::new();
     if !docs_root.is_dir() {
@@ -120,12 +132,12 @@ pub fn filter_pages(
                 return false;
             }
             if !include_future
-                && let Some(d) = p.date.as_deref()
+                && let Some(d) = p.published_at.as_deref()
                 && d.as_bytes() > today.as_bytes()
             {
                 return false;
             }
-            if let Some(exp) = p.frontmatter.expiry_date.as_deref()
+            if let Some(exp) = p.frontmatter.expires_at.as_deref()
                 && exp.as_bytes() <= today.as_bytes()
             {
                 return false;
@@ -137,23 +149,23 @@ pub fn filter_pages(
 
 /// Sort pages within a collection according to its config.
 pub fn sort_collection_entries(entries: &mut [&PageData], cfg: &CollectionConfig) {
-    let order_desc = cfg.order.eq_ignore_ascii_case("desc");
-    match cfg.sort_by.as_str() {
-        "weight" => entries.sort_by(|a, b| {
+    let order_desc = matches!(cfg.order, SortOrder::Desc);
+    match cfg.sort_by {
+        CollectionSortKey::Weight => entries.sort_by(|a, b| {
             let aw = a.frontmatter.weight.unwrap_or(i64::MAX);
             let bw = b.frontmatter.weight.unwrap_or(i64::MAX);
             if order_desc { bw.cmp(&aw) } else { aw.cmp(&bw) }
         }),
-        "title" => entries.sort_by(|a, b| {
+        CollectionSortKey::Title => entries.sort_by(|a, b| {
             if order_desc {
                 b.title.cmp(&a.title)
             } else {
                 a.title.cmp(&b.title)
             }
         }),
-        _ => entries.sort_by(|a, b| {
-            let ad = a.date.as_deref().unwrap_or("");
-            let bd = b.date.as_deref().unwrap_or("");
+        CollectionSortKey::PublishedAt => entries.sort_by(|a, b| {
+            let ad = a.published_at.as_deref().unwrap_or("");
+            let bd = b.published_at.as_deref().unwrap_or("");
             if order_desc { bd.cmp(ad) } else { ad.cmp(bd) }
         }),
     }

@@ -1,3 +1,8 @@
+---
+title: 库 API
+description: 在 Rust 应用中嵌入 Novel,并通过库 API 构建站点。
+---
+
 # 库 API
 
 Novel 可以作为 CLI 独立运行,也可以作为库嵌入到你自己的 Rust 应用中 —— 无论是 Web 服务器、构建工具还是其他任何地方。
@@ -14,7 +19,9 @@ novel-core = { path = "path/to/novel/crates/novel-core" }
 三行代码即可构建一个文档站点并写入磁盘:
 
 ```rust
-let site = novel_core::Novel::new("docs").build()?;
+use novel_core::{DirNovel, Novel};
+
+let site = DirNovel::new("docs").build()?;
 site.write_to("dist")?;
 ```
 
@@ -23,7 +30,9 @@ site.write_to("dist")?;
 如果你有一个带 `novel.toml` 配置文件的项目:
 
 ```rust
-let site = novel_core::Novel::load(".")?.build()?;
+use novel_core::{DirNovel, Novel};
+
+let site = DirNovel::load(".")?.build()?;
 site.write_to_default_output()?;
 ```
 
@@ -32,9 +41,9 @@ site.write_to_default_output()?;
 通过 builder 模式以编程方式自定义站点:
 
 ```rust
-use novel_core::Novel;
+use novel_core::{DirNovel, Novel};
 
-let site = Novel::new("docs")
+let site = DirNovel::new("docs")
     .title("My API Reference")
     .description("Generated docs for my-crate")
     .base("/docs/")
@@ -42,7 +51,7 @@ let site = Novel::new("docs")
     .with_theme(|t| {
         t.dark_mode = true;
         t.footer = Some("Built with Novel".into());
-        t.last_updated = true;
+        t.show_git_updated_at = true;
     })
     .build()?;
 
@@ -57,7 +66,7 @@ site.write_to("./output")?;
 | `description()` | 站点描述 |
 | `base()` | 基础 URL 路径(例如 `"/docs/"`) |
 | `lang()` | 语言代码(默认 `"en"`) |
-| `out_dir()` | 输出目录名 |
+| `output_dir()` | 输出目录名 |
 | `site_url()` | 用于 sitemap / RSS 的完整 URL |
 | `theme()` | 替换主题配置 |
 | `with_theme()` | 通过闭包修改主题配置 |
@@ -71,7 +80,7 @@ site.write_to("./output")?;
 ### 访问页面
 
 ```rust
-let site = Novel::new("docs").build()?;
+let site = DirNovel::new("docs").build()?;
 
 // 遍历所有页面
 for page in site.pages() {
@@ -87,7 +96,7 @@ if let Some(page) = site.page("/guide/intro") {
 ### 渲染单个页面
 
 ```rust
-let site = Novel::new("docs").build()?;
+let site = DirNovel::new("docs").build()?;
 
 // 将一个页面渲染为完整的 HTML 字符串
 let page = site.page("/guide/intro").unwrap();
@@ -127,11 +136,12 @@ if let Some(xml) = site.feed_xml() {
 
 ```rust title="server.rs"
 use axum::{Router, routing::get, extract::Path, response::Html};
+use novel_core::{DirNovel, Novel};
 
 #[tokio::main]
 async fn main() {
     // 在启动时构建一次
-    let site = novel_core::Novel::new("docs")
+    let site = DirNovel::new("docs")
         .title("My App Docs")
         .build()
         .expect("failed to build docs");
@@ -170,7 +180,7 @@ novel preview
 == 库(嵌入)
 
 ```rust
-let site = Novel::new("docs").build()?;
+let site = DirNovel::new("docs").build()?;
 site.write_to("dist")?;
 
 // 或者直接从内存中提供服务

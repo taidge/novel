@@ -2,10 +2,13 @@
 name = "novel-shared"
 version.workspace = true
 edition.workspace = true
+description = "Shared configuration and data types for Novel."
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
-kdl = { workspace = true }
 anyhow = { workspace = true }

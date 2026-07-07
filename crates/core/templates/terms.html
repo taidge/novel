@@ -11,7 +11,7 @@
         </header>
         <ul class="term-cloud">
         {% for term in terms %}
-            <li><a href="{{ term.link }}">{{ term.name }}</a> <span class="term-count">({{ term.count }})</span></li>
+            <li><a href="{{ route_url(term.url) }}">{{ term.name }}</a> <span class="term-count">({{ term.count }})</span></li>
         {% endfor %}
         </ul>
     </main>

@@ -753,6 +753,10 @@ a:hover {
     border-radius: 0 0 var(--radius-lg) var(--radius-lg);
     overflow-x: auto;
 }
+.code-block.wrap-code pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
 .markdown-body pre code {
     background: none;
     padding: 0;
@@ -859,6 +863,9 @@ a:hover {
 /* ========== Line Numbers ========== */
 .code-block.with-line-numbers .code-line {
     display: flex;
+}
+.code-block.wrap-code .code-line {
+    white-space: pre-wrap;
 }
 
 .line-number {
@@ -1176,6 +1183,10 @@ img.zoomable {
     border-radius: var(--radius-xl);
     background: var(--bg-secondary);
     transition: box-shadow var(--transition-normal), transform var(--transition-normal);
+}
+a.feature-card {
+    color: inherit;
+    text-decoration: none;
 }
 .feature-card:hover {
     box-shadow: var(--shadow-md);

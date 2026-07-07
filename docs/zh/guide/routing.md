@@ -1,3 +1,8 @@
+---
+title: 路由
+description: 理解 Novel 的文件路由、输出路径、干净 URL 和重定向。
+---
+
 # 路由
 
 Novel 使用基于文件的路由。`docs/` 目录下的每个 `.md` 文件都会自动成为一个页面。
@@ -73,7 +78,7 @@ docs/
 
 ## 首页
 
-根目录的 `index.md` 文件在 frontmatter 中设置 `page_type: home` 时会被当作首页。详情见[首页](/guide/home-page)。
+根目录的 `index.md` 文件在 frontmatter 中设置 `layout: home` 时会被当作首页。详情见[首页](/guide/home-page)。
 
 ## 静态资源
 

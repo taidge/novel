@@ -5,8 +5,8 @@ use serde::Serialize;
 #[derive(Debug, Clone, Serialize)]
 pub struct PageRef {
     pub title: String,
-    pub link: String,
-    pub date: Option<String>,
+    pub url: String,
+    pub published_at: Option<String>,
     pub summary_html: Option<String>,
 }
 

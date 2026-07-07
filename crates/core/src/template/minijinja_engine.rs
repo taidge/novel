@@ -85,11 +85,16 @@ impl MiniJinjaRenderer {
     ) -> NovelResult<Self> {
         let mut env = Environment::new();
         let template_dir = project_root.map(|p| p.join("templates"));
-        let theme_pack_dir: Option<PathBuf> =
-            config.theme.pack.as_ref().map(|p| match project_root {
-                Some(root) => root.join(p).join("templates"),
-                None => PathBuf::from(p).join("templates"),
-            });
+        let theme_pack_dir: Option<PathBuf> = match config.theme.pack.as_ref() {
+            Some(p) => {
+                let pack_dir = match project_root {
+                    Some(root) => crate::util::safe_join_relative(root, Path::new(p))?,
+                    None => crate::util::safe_join_relative(Path::new("."), Path::new(p))?,
+                };
+                Some(pack_dir.join("templates"))
+            }
+            None => None,
+        };
 
         env.set_loader(move |name| {
             if let Some(ref dir) = template_dir
@@ -117,6 +122,21 @@ impl MiniJinjaRenderer {
             let trimmed_base = base_for_asset.trim_end_matches('/');
             let trimmed_path = path.trim_start_matches('/');
             Value::from(format!("{}/{}", trimmed_base, trimmed_path))
+        });
+
+        let base_for_route = base.clone();
+        env.add_function("route_url", move |path: String| -> Value {
+            Value::from(crate::util::join_base_path(&base_for_route, &path))
+        });
+
+        let base_for_absolute = base.clone();
+        let site_url_for_absolute = config.site_url.clone();
+        env.add_function("absolute_url", move |path: String| -> Value {
+            let url = match site_url_for_absolute.as_deref() {
+                Some(site_url) => crate::util::join_site_url(site_url, &base_for_absolute, &path),
+                None => crate::util::join_base_path(&base_for_absolute, &path),
+            };
+            Value::from(url)
         });
 
         let base_for_set = base.clone();

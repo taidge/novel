@@ -1,5 +1,6 @@
 use crate::plugin::{BuiltSiteView, Plugin};
 use crate::util::html_escape;
+use std::path::{Component, Path};
 
 pub struct RedirectsPlugin;
 
@@ -16,44 +17,66 @@ impl Plugin for RedirectsPlugin {
             for alias in &page.frontmatter.aliases {
                 let target = &page.route.route_path;
                 let html = redirect_html(alias, target, site.config.site_url.as_deref());
-                let path = alias_to_file_path(alias);
-                files.push((path, html.into_bytes()));
+                if let Some(path) = alias_to_file_path(alias) {
+                    files.push((path, html.into_bytes()));
+                } else {
+                    tracing::warn!("Skipping invalid redirect alias path: {alias}");
+                }
             }
 
             // Handle redirect frontmatter (page itself redirects elsewhere)
             if let Some(ref redirect_to) = page.frontmatter.redirect {
                 let from = &page.route.route_path;
                 let html = redirect_html(from, redirect_to, site.config.site_url.as_deref());
-                let path = alias_to_file_path(from);
                 // This overwrites the page's own output — the redirect takes priority
-                files.push((path, html.into_bytes()));
+                if let Some(path) = alias_to_file_path(from) {
+                    files.push((path, html.into_bytes()));
+                } else {
+                    tracing::warn!("Skipping invalid redirect source path: {from}");
+                }
             }
         }
 
         // Global redirects from config
         for (from, to) in &site.config.redirects {
             let html = redirect_html(from, to, site.config.site_url.as_deref());
-            let path = alias_to_file_path(from);
-            files.push((path, html.into_bytes()));
+            if let Some(path) = alias_to_file_path(from) {
+                files.push((path, html.into_bytes()));
+            } else {
+                tracing::warn!("Skipping invalid redirect source path: {from}");
+            }
         }
 
         files
     }
 }
 
-fn alias_to_file_path(alias: &str) -> String {
+fn alias_to_file_path(alias: &str) -> Option<String> {
     let trimmed = alias.trim_matches('/');
     if trimmed.is_empty() {
-        "index.html".to_string()
+        return Some("index.html".to_string());
+    }
+
+    let mut parts = Vec::new();
+    for component in Path::new(trimmed).components() {
+        match component {
+            Component::Normal(part) => parts.push(part.to_string_lossy().to_string()),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => return None,
+        }
+    }
+    if parts.is_empty() {
+        None
     } else {
-        format!("{}/index.html", trimmed)
+        Some(format!("{}/index.html", parts.join("/")))
     }
 }
 
 fn redirect_html(_from: &str, to: &str, site_url: Option<&str>) -> String {
     let canonical = match site_url {
-        Some(base) => format!("{}{}", base.trim_end_matches('/'), to),
+        Some(base) if to.starts_with('/') => format!("{}{}", base.trim_end_matches('/'), to),
         None => to.to_string(),
+        Some(_) => to.to_string(),
     };
     let to_html = html_escape(to);
     let canonical_html = html_escape(&canonical);
@@ -91,7 +114,7 @@ fn js_string_literal(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::redirect_html;
+    use super::{alias_to_file_path, redirect_html};
 
     #[test]
     fn redirect_escapes_html_and_js_contexts() {
@@ -105,5 +128,15 @@ mod tests {
         assert!(html.contains(r#"window.location.replace("/x\" autofocus"#));
         assert!(html.contains(r#"\u003c/script\u003e"#));
         assert!(!html.contains(r#"<script>alert(2)</script>"#));
+    }
+
+    #[test]
+    fn redirect_alias_paths_cannot_escape_output_dir() {
+        assert_eq!(
+            alias_to_file_path("/old/path"),
+            Some("old/path/index.html".to_string())
+        );
+        assert_eq!(alias_to_file_path("/../secret"), None);
+        assert_eq!(alias_to_file_path("/guide/../../secret"), None);
     }
 }

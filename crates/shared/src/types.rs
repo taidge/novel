@@ -34,8 +34,6 @@ pub struct FrontMatter {
     pub title: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
-    #[serde(default)]
-    pub page_type: Option<PageType>,
     /// Layout template: "doc" (default), "page", "blog", "home", or custom
     #[serde(default)]
     pub layout: Option<String>,
@@ -72,10 +70,10 @@ pub struct FrontMatter {
     // -- General SSG fields --
     /// Publish date (YYYY-MM-DD or RFC3339)
     #[serde(default)]
-    pub date: Option<String>,
+    pub published_at: Option<String>,
     /// Last updated date
     #[serde(default)]
-    pub updated: Option<String>,
+    pub updated_at: Option<String>,
     /// Mark as draft (excluded from build unless --drafts)
     #[serde(default)]
     pub draft: bool,
@@ -85,12 +83,9 @@ pub struct FrontMatter {
     /// Manual summary (overrides <!-- more --> extraction)
     #[serde(default)]
     pub summary: Option<String>,
-    /// Tags
+    /// Taxonomy terms by configured taxonomy key.
     #[serde(default)]
-    pub tags: Vec<String>,
-    /// Categories
-    #[serde(default)]
-    pub categories: Vec<String>,
+    pub taxonomies: std::collections::HashMap<String, Vec<String>>,
     /// Series identifier
     #[serde(default)]
     pub series: Option<String>,
@@ -99,7 +94,7 @@ pub struct FrontMatter {
     pub authors: Vec<String>,
     /// Expiry date — page excluded after this date unless --future
     #[serde(default)]
-    pub expiry_date: Option<String>,
+    pub expires_at: Option<String>,
 }
 
 /// Custom HTML head tag
@@ -110,16 +105,6 @@ pub struct HeadTag {
     pub attrs: std::collections::HashMap<String, String>,
     #[serde(default)]
     pub content: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum PageType {
-    Home,
-    Doc,
-    Custom,
-    #[serde(rename = "404")]
-    NotFound,
 }
 
 /// Hero section for home page
@@ -139,7 +124,7 @@ pub struct Hero {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HeroAction {
     pub text: String,
-    pub link: String,
+    pub url: String,
     #[serde(default)]
     pub theme: Option<String>,
 }
@@ -159,14 +144,14 @@ pub struct Feature {
     #[serde(default)]
     pub icon: Option<String>,
     #[serde(default)]
-    pub link: Option<String>,
+    pub url: Option<String>,
 }
 
 /// Link to a page (for prev/next navigation)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageLink {
     pub title: String,
-    pub link: String,
+    pub url: String,
 }
 
 /// Link to the same page in another documentation version.
@@ -174,7 +159,7 @@ pub struct PageLink {
 pub struct VersionLink {
     pub code: String,
     pub label: String,
-    pub link: String,
+    pub url: String,
     pub current: bool,
 }
 
@@ -189,7 +174,7 @@ pub struct PageData {
     pub frontmatter: FrontMatter,
     /// Git last updated timestamp
     #[serde(default)]
-    pub last_updated: Option<String>,
+    pub git_updated_at: Option<String>,
     /// Previous page in navigation order
     #[serde(default)]
     pub prev_page: Option<PageLink>,
@@ -211,9 +196,9 @@ pub struct PageData {
     /// Collection name this page belongs to (e.g. "posts")
     #[serde(default)]
     pub collection: Option<String>,
-    /// Resolved date (from frontmatter.date or git)
+    /// Resolved publish date
     #[serde(default)]
-    pub date: Option<String>,
+    pub published_at: Option<String>,
     /// Alternate language versions of this page, as `(locale_code, route_path)`
     /// tuples. Populated by the i18n pipeline when multiple locales share the
     /// same `relative_path`. Used by `base.html` to emit
@@ -231,7 +216,7 @@ pub struct PageData {
 pub enum SidebarItem {
     Link {
         text: String,
-        link: String,
+        url: String,
     },
     Group {
         text: String,
@@ -246,7 +231,7 @@ pub enum SidebarItem {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NavItem {
     pub text: String,
-    pub link: String,
+    pub url: String,
     #[serde(default)]
     pub active_match: Option<String>,
 }
@@ -255,7 +240,7 @@ pub struct NavItem {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SocialLink {
     pub icon: String,
-    pub link: String,
+    pub url: String,
 }
 
 /// A section of content under a heading, used for section-level search
@@ -283,7 +268,7 @@ pub struct SearchIndexEntry {
 pub struct BannerConfig {
     pub text: String,
     #[serde(default)]
-    pub link: Option<String>,
+    pub url: Option<String>,
     #[serde(default = "default_true")]
     pub dismissible: bool,
 }

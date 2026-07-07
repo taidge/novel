@@ -33,6 +33,7 @@ use crate::util;
 pub(crate) struct ListPage {
     pub route_path: String,
     pub title: String,
+    pub template_name: String,
     pub paginator: Paginator,
 }
 
@@ -92,8 +93,8 @@ pub(crate) fn post_process_general(
             .iter()
             .map(|p| PageRef {
                 title: p.title.clone(),
-                link: p.route.route_path.clone(),
-                date: p.date.clone(),
+                url: p.route.route_path.clone(),
+                published_at: p.published_at.clone(),
                 summary_html: p.summary_html.clone().or_else(|| {
                     if !p.description.is_empty() {
                         Some(format!("<p>{}</p>", util::html_escape(&p.description)))
@@ -105,11 +106,7 @@ pub(crate) fn post_process_general(
             .collect();
 
         let base_route = format!("/{}/", name);
-        let per = if coll.config.paginate_by == 0 {
-            items.len().max(1)
-        } else {
-            coll.config.paginate_by
-        };
+        let per = coll.config.per_page.unwrap_or_else(|| items.len().max(1));
         let paginators = pagination::paginate(
             &base_route,
             items,
@@ -121,6 +118,7 @@ pub(crate) fn post_process_general(
             list_pages.push(ListPage {
                 route_path: paginator.route_path.clone(),
                 title: capitalize(name),
+                template_name: list_template_name(&coll.config.list_layout),
                 paginator,
             });
         }
@@ -138,16 +136,16 @@ pub(crate) fn post_process_general(
         for (series, mut entries) in series_map {
             // Sort series chronologically (asc by date) so reading order makes sense.
             entries.sort_by(|a, b| {
-                let ad = a.date.as_deref().unwrap_or("");
-                let bd = b.date.as_deref().unwrap_or("");
+                let ad = a.published_at.as_deref().unwrap_or("");
+                let bd = b.published_at.as_deref().unwrap_or("");
                 ad.cmp(bd)
             });
             let items: Vec<PageRef> = entries
                 .iter()
                 .map(|p| PageRef {
                     title: p.title.clone(),
-                    link: p.route.route_path.clone(),
-                    date: p.date.clone(),
+                    url: p.route.route_path.clone(),
+                    published_at: p.published_at.clone(),
                     summary_html: p.summary_html.clone(),
                 })
                 .collect();
@@ -164,6 +162,7 @@ pub(crate) fn post_process_general(
                 list_pages.push(ListPage {
                     route_path: paginator.route_path.clone(),
                     title: format!("Series: {}", series),
+                    template_name: "list.html".to_string(),
                     paginator,
                 });
             }
@@ -176,7 +175,7 @@ pub(crate) fn post_process_general(
         let mut by_year: BTreeMap<String, Vec<&PageData>> = BTreeMap::new();
         let mut by_ym: BTreeMap<String, Vec<&PageData>> = BTreeMap::new();
         for p in &pages {
-            if let Some(date) = p.date.as_deref() {
+            if let Some(date) = p.published_at.as_deref() {
                 if date.len() >= 4 {
                     by_year.entry(date[..4].to_string()).or_default().push(p);
                 }
@@ -190,17 +189,17 @@ pub(crate) fn post_process_general(
         }
         for (year, mut entries) in by_year {
             entries.sort_by(|a, b| {
-                b.date
+                b.published_at
                     .as_deref()
                     .unwrap_or("")
-                    .cmp(a.date.as_deref().unwrap_or(""))
+                    .cmp(a.published_at.as_deref().unwrap_or(""))
             });
             let items: Vec<PageRef> = entries
                 .iter()
                 .map(|p| PageRef {
                     title: p.title.clone(),
-                    link: p.route.route_path.clone(),
-                    date: p.date.clone(),
+                    url: p.route.route_path.clone(),
+                    published_at: p.published_at.clone(),
                     summary_html: p.summary_html.clone(),
                 })
                 .collect();
@@ -216,23 +215,24 @@ pub(crate) fn post_process_general(
                 list_pages.push(ListPage {
                     route_path: paginator.route_path.clone(),
                     title: format!("Archive: {}", year),
+                    template_name: "list.html".to_string(),
                     paginator,
                 });
             }
         }
         for (ym, mut entries) in by_ym {
             entries.sort_by(|a, b| {
-                b.date
+                b.published_at
                     .as_deref()
                     .unwrap_or("")
-                    .cmp(a.date.as_deref().unwrap_or(""))
+                    .cmp(a.published_at.as_deref().unwrap_or(""))
             });
             let items: Vec<PageRef> = entries
                 .iter()
                 .map(|p| PageRef {
                     title: p.title.clone(),
-                    link: p.route.route_path.clone(),
-                    date: p.date.clone(),
+                    url: p.route.route_path.clone(),
+                    published_at: p.published_at.clone(),
                     summary_html: p.summary_html.clone(),
                 })
                 .collect();
@@ -248,6 +248,7 @@ pub(crate) fn post_process_general(
                 list_pages.push(ListPage {
                     route_path: paginator.route_path.clone(),
                     title: format!("Archive: {}", ym.replace('/', "-")),
+                    template_name: "list.html".to_string(),
                     paginator,
                 });
             }
@@ -267,21 +268,21 @@ pub(crate) fn post_process_general(
             let mut entries: Vec<&PageData> = page_indices.iter().map(|i| &pages[*i]).collect();
             // Sort: date desc by default
             entries.sort_by(|a, b| {
-                let ad = a.date.as_deref().unwrap_or("");
-                let bd = b.date.as_deref().unwrap_or("");
+                let ad = a.published_at.as_deref().unwrap_or("");
+                let bd = b.published_at.as_deref().unwrap_or("");
                 bd.cmp(ad)
             });
             let items: Vec<PageRef> = entries
                 .iter()
                 .map(|p| PageRef {
                     title: p.title.clone(),
-                    link: p.route.route_path.clone(),
-                    date: p.date.clone(),
+                    url: p.route.route_path.clone(),
+                    published_at: p.published_at.clone(),
                     summary_html: p.summary_html.clone(),
                 })
                 .collect();
             let base_route = taxonomy::term_route(key, term, tax_cfg);
-            let per = tax_cfg.paginate_by.unwrap_or(items.len().max(1));
+            let per = tax_cfg.per_page.unwrap_or(items.len().max(1));
             let paginators = pagination::paginate(
                 &base_route,
                 items,
@@ -293,6 +294,7 @@ pub(crate) fn post_process_general(
                 list_pages.push(ListPage {
                     route_path: paginator.route_path.clone(),
                     title: format!("{}: {}", key, term),
+                    template_name: "list.html".to_string(),
                     paginator,
                 });
             }
@@ -305,7 +307,7 @@ pub(crate) fn post_process_general(
             .map(|(term, ids)| TermSummary {
                 name: term.clone(),
                 slug: slugify(term),
-                link: taxonomy::term_route(key, term, tax_cfg),
+                url: taxonomy::term_route(key, term, tax_cfg),
                 count: ids.len(),
             })
             .collect();
@@ -325,5 +327,16 @@ fn capitalize(s: &str) -> String {
     match c.next() {
         Some(first) => first.to_uppercase().collect::<String>() + c.as_str(),
         None => String::new(),
+    }
+}
+
+fn list_template_name(layout: &str) -> String {
+    let trimmed = layout.trim();
+    if trimmed.is_empty() {
+        "list.html".to_string()
+    } else if trimmed.ends_with(".html") {
+        trimmed.to_string()
+    } else {
+        format!("{trimmed}.html")
     }
 }

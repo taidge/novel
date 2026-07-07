@@ -2,14 +2,18 @@
 name = "novel-cli"
 version.workspace = true
 edition.workspace = true
+description = "Command-line interface for the Novel static documentation site generator."
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 [[bin]]
 name = "novel"
 path = "src/main.rs"
 
 [dependencies]
-novel-shared = { path = "../shared" }
-novel-core = { path = "../core" }
+novel-shared = { version = "0.1.0", path = "../shared" }
+novel-core = { version = "0.1.0", path = "../core", features = ["sass", "images", "tera", "handlebars"] }
 clap = { workspace = true }
 tokio = { workspace = true }
 salvo = { workspace = true }
@@ -18,3 +22,4 @@ notify = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
+serde_json = { workspace = true }
