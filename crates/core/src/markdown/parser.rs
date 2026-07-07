@@ -21,7 +21,7 @@ static HIGHLIGHTED_LINES_RE: LazyLock<Regex> =
 static CODE_TITLE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"title="([^"]+)""#).expect("valid regex"));
 static INTERNAL_LINK_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"href="(/[^"]*?)""#).expect("valid regex"));
+    LazyLock::new(|| Regex::new(r#"(?:href|src)="(/[^"]*?)""#).expect("valid regex"));
 
 /// Main markdown processing engine
 pub struct MarkdownProcessor {
