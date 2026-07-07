@@ -30,7 +30,7 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
   test:
     name: test (${{ matrix.os }})
@@ -43,8 +43,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --workspace --verbose
-      - run: cargo test --workspace --verbose
+      - run: cargo build --workspace --all-features --verbose
+      - run: cargo test --workspace --all-features --verbose
 
   docs:
     name: build docs site
@@ -57,3 +57,15 @@ jobs:
         run: cargo build -p novel-cli --release
       - name: Build the docs site with it
         run: ./target/release/novel build
+      - name: Check the docs site with it
+        run: ./target/release/novel check
+
+  package:
+    name: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Verify publishable shared crate package
+        run: cargo package -p novel-shared --allow-dirty
