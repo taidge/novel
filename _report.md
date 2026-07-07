@@ -86,8 +86,8 @@ PR 状态：已提交到 draft PR #9 `Fix static site security boundaries`，URL
 - [x] 安全项：home feature card 内联 JS 字符串注入面  
   已改为普通 `<a href>` 渲染，不再把 frontmatter URL 写入 inline JS 字符串。
 
-- [ ] 安全项：trusted content/config 边界文档化与 head tag/attr allowlist  
-  未完成。
+- [x] 安全项：trusted content/config 边界文档化与 head tag/attr allowlist
+  已在独立 PR 中修复：Markdown/Typst frontmatter 会校验 custom head 的 tag/attr 名并拒绝事件处理属性；frontmatter 文档明确 custom head 属性值和内容属于 trusted author input。
 
 - [ ] CI 项：把 all-features test/clippy、`novel check`、package 验证加入 CI  
   未完成。本次已本地验证，但未修改 CI。
