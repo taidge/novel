@@ -3,7 +3,7 @@
 审计与修复日期：2026-07-07  
 工作区：`D:\Works\taidge\novel`  
 报告目标：根据上一版审计报告修复可落地问题，并对每个 item 标记是否已 fixed。  
-PR 状态：已提交到 draft PR #9 `Fix static site security boundaries`，URL: https://github.com/taidge/novel/pull/9。当前工作区已存在该分支的开放 PR，因此本次采用更新现有 PR 的方式，避免创建重复 PR。  
+PR 状态：基础修复已提交到 draft PR #9 `Fix static site security boundaries`，URL: https://github.com/taidge/novel/pull/9。未完成 checklist item 会拆成独立 stacked PR，base 指向 #9 分支，避免重复包含 #9 的大 diff。
 当前结论：项目已从“可运行 MVP / 内测 beta”推进到“更接近公开 beta”的状态。核心构建、测试、clippy、文档站点 build/check 已通过；crates.io 安装链路仍未完全闭环，因为 `novel-core`/`novel-cli` 的完整 package verify 需要先在 crates.io 发布内部依赖。
 
 ## 1. 当前完成度
@@ -68,8 +68,8 @@ PR 状态：已提交到 draft PR #9 `Fix static site security boundaries`，URL
 - [x] 6.2 `summary_separator` 与 `list_layout` 配置接通  
   已将 `content.summary_separator` 传入 MarkdownProcessor；ListPage 已携带 template name 并按 `list_layout` 渲染。
 
-- [ ] 6.3 dev server watcher 覆盖模板/CSS/Sass/数据等变更  
-  未完成。
+- [x] 6.3 dev server watcher 覆盖模板/CSS/Sass/数据等变更
+  已在独立 PR 中修复：dev watcher 会收集 docs、config、project templates、theme pack、custom CSS、Sass entries/load paths，并扩展 rebuild 触发文件类型以覆盖模板、CSS/SCSS、JS、图片、字体和 PDF 等静态资产。
 
 - [ ] 6.4 文档与实现漂移全面清理  
   部分修复：description 缺口已清理。未勾选原因：安装说明、alternate engine 限制、部分配置说明仍需与发布策略同步。

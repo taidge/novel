@@ -11,6 +11,7 @@ use tokio::sync::{broadcast, mpsc};
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
 use tracing::info;
+use tracing::warn;
 
 /// Quiet window after the last filesystem event before triggering a rebuild.
 /// Real debouncing: each new event resets the timer.
@@ -131,19 +132,19 @@ pub async fn run_dev_server(project_root: &Path, host: &str, port: u16) -> Resul
             return;
         };
         for path in event.paths {
-            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-            let should_rebuild = matches!(ext, "md" | "json" | "toml" | "typ" | "yaml" | "yml");
-            if should_rebuild {
+            if should_rebuild_path(&path) {
                 let _ = event_tx.send(path);
             }
         }
     })?;
 
-    watcher.watch(&docs_root, RecursiveMode::Recursive)?;
-
-    // Watch config file
-    if let Some(config_path) = SiteConfig::config_path(&project_root) {
-        watcher.watch(&config_path, RecursiveMode::NonRecursive)?;
+    for (path, mode) in collect_watch_paths(&project_root, &config, &docs_root) {
+        if path.exists() {
+            watcher.watch(&path, mode)?;
+            info!("Watching {}", path.display());
+        } else {
+            warn!("Watch path does not exist yet: {}", path.display());
+        }
     }
 
     // Rebuild task — debounces by waiting for DEBOUNCE_MS of silence
@@ -212,6 +213,118 @@ pub async fn run_dev_server(project_root: &Path, host: &str, port: u16) -> Resul
     Ok(())
 }
 
+fn should_rebuild_path(path: &Path) -> bool {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+
+    matches!(
+        ext.as_str(),
+        "md" | "mdx"
+            | "typ"
+            | "json"
+            | "toml"
+            | "yaml"
+            | "yml"
+            | "html"
+            | "tera"
+            | "hbs"
+            | "handlebars"
+            | "css"
+            | "scss"
+            | "sass"
+            | "js"
+            | "mjs"
+            | "ts"
+            | "tsx"
+            | "jsx"
+            | "png"
+            | "jpg"
+            | "jpeg"
+            | "gif"
+            | "svg"
+            | "webp"
+            | "avif"
+            | "ico"
+            | "pdf"
+            | "woff"
+            | "woff2"
+            | "ttf"
+            | "otf"
+    )
+}
+
+fn collect_watch_paths(
+    project_root: &Path,
+    config: &SiteConfig,
+    docs_root: &Path,
+) -> Vec<(PathBuf, RecursiveMode)> {
+    let mut out = Vec::new();
+    push_watch_path(&mut out, docs_root.to_path_buf(), RecursiveMode::Recursive);
+
+    if let Some(config_path) = SiteConfig::config_path(project_root) {
+        push_watch_path(&mut out, config_path, RecursiveMode::NonRecursive);
+    }
+
+    push_watch_path(
+        &mut out,
+        project_root.join("templates"),
+        RecursiveMode::Recursive,
+    );
+
+    if let Some(path) = project_relative_path(project_root, config.theme.pack.as_deref()) {
+        push_watch_path(&mut out, path, RecursiveMode::Recursive);
+    }
+
+    if let Some(path) = project_relative_path(project_root, config.theme.custom_css.as_deref()) {
+        push_watch_path(&mut out, path, RecursiveMode::NonRecursive);
+    }
+
+    for entry in &config.sass.entries {
+        if let Some(input) = entry.first()
+            && let Some(path) = project_relative_path(project_root, Some(input.as_str()))
+        {
+            push_watch_path(&mut out, path, RecursiveMode::NonRecursive);
+        }
+    }
+
+    for load_path in &config.sass.load_paths {
+        if let Some(path) = project_relative_path(project_root, Some(load_path.as_str())) {
+            push_watch_path(&mut out, path, RecursiveMode::Recursive);
+        }
+    }
+
+    out
+}
+
+fn push_watch_path(out: &mut Vec<(PathBuf, RecursiveMode)>, path: PathBuf, mode: RecursiveMode) {
+    if out.iter().any(|(existing, _)| existing == &path) {
+        return;
+    }
+    out.push((path, mode));
+}
+
+fn project_relative_path(project_root: &Path, configured: Option<&str>) -> Option<PathBuf> {
+    let configured = configured?.trim();
+    if configured.is_empty() {
+        return None;
+    }
+
+    let relative = Path::new(configured);
+    if relative.is_absolute()
+        || relative
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        warn!("Ignoring watch path outside project root: {}", configured);
+        return None;
+    }
+
+    Some(project_root.join(relative))
+}
+
 /// Serve a static directory (for preview)
 pub async fn serve_static(dir: &Path, host: &str, port: u16) -> Result<()> {
     let router = Router::with_path("<**path>").get(
@@ -226,4 +339,61 @@ pub async fn serve_static(dir: &Path, host: &str, port: u16) -> Result<()> {
     Server::new(acceptor).serve(router).await;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use novel_shared::config::{SassConfig, ThemeConfig};
+
+    #[test]
+    fn rebuild_filter_includes_templates_styles_and_static_assets() {
+        for path in [
+            "docs/index.md",
+            "templates/doc.html",
+            "templates/doc.tera",
+            "templates/doc.hbs",
+            "assets/site.css",
+            "assets/site.scss",
+            "docs/logo.svg",
+            "docs/manual.pdf",
+        ] {
+            assert!(should_rebuild_path(Path::new(path)), "{path}");
+        }
+
+        assert!(!should_rebuild_path(Path::new("dist/index.tmp")));
+    }
+
+    #[test]
+    fn watch_paths_include_templates_theme_css_and_sass_inputs() {
+        let project_root = Path::new("project");
+        let config = SiteConfig {
+            theme: ThemeConfig {
+                pack: Some("themes/midnight".to_string()),
+                custom_css: Some("assets/site.css".to_string()),
+                ..ThemeConfig::default()
+            },
+            sass: SassConfig {
+                entries: vec![vec![
+                    "assets/scss/main.scss".to_string(),
+                    "assets/css/main.css".to_string(),
+                ]],
+                load_paths: vec!["assets/scss".to_string()],
+            },
+            ..SiteConfig::default()
+        };
+
+        let paths: Vec<PathBuf> =
+            collect_watch_paths(project_root, &config, Path::new("project/docs"))
+                .into_iter()
+                .map(|(path, _)| path)
+                .collect();
+
+        assert!(paths.contains(&PathBuf::from("project/docs")));
+        assert!(paths.contains(&PathBuf::from("project/templates")));
+        assert!(paths.contains(&PathBuf::from("project/themes/midnight")));
+        assert!(paths.contains(&PathBuf::from("project/assets/site.css")));
+        assert!(paths.contains(&PathBuf::from("project/assets/scss/main.scss")));
+        assert!(paths.contains(&PathBuf::from("project/assets/scss")));
+    }
 }
