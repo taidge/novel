@@ -5,7 +5,40 @@ use crate::dates::validate_frontmatter_dates;
 
 pub(crate) fn validate_frontmatter(frontmatter: &FrontMatter, source: &str) -> Result<()> {
     validate_frontmatter_dates(frontmatter, source)?;
+    validate_structured_urls(frontmatter, source)?;
     validate_head_tags(frontmatter, source)
+}
+
+fn validate_structured_urls(frontmatter: &FrontMatter, source: &str) -> Result<()> {
+    for (field, value) in [
+        ("canonical", frontmatter.canonical.as_deref()),
+        ("og_image", frontmatter.og_image.as_deref()),
+        ("redirect", frontmatter.redirect.as_deref()),
+    ] {
+        if let Some(value) = value {
+            validate_safe_url(field, value, source)?;
+        }
+    }
+
+    if let Some(hero) = &frontmatter.hero {
+        if let Some(image) = &hero.image {
+            validate_safe_url("hero.image.src", &image.src, source)?;
+        }
+        if let Some(actions) = &hero.actions {
+            for action in actions {
+                validate_safe_url("hero.actions[].url", &action.url, source)?;
+            }
+        }
+    }
+    if let Some(features) = &frontmatter.features {
+        for feature in features {
+            if let Some(url) = &feature.url {
+                validate_safe_url("features[].url", url, source)?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn validate_head_tags(frontmatter: &FrontMatter, source: &str) -> Result<()> {
@@ -68,35 +101,43 @@ fn validate_head_tag(tag: &HeadTag, source: &str) -> Result<()> {
                 source
             );
         }
-        if tag_name == "link" && attr_name == "href" && !is_safe_head_url(value) {
-            anyhow::bail!(
-                "Unsafe href on frontmatter head tag `link` in {}: `{}`",
-                source,
-                value
-            );
+        if tag_name == "link" && attr_name == "href" {
+            validate_safe_url("head[link].href", value, source)?;
         }
     }
 
     Ok(())
 }
 
-fn is_safe_head_url(value: &str) -> bool {
+fn validate_safe_url(field: &str, value: &str, source: &str) -> Result<()> {
+    if is_safe_url(value) {
+        Ok(())
+    } else {
+        anyhow::bail!("Unsafe URL in frontmatter field `{field}` in {source}: `{value}`")
+    }
+}
+
+fn is_safe_url(value: &str) -> bool {
     let value = value.trim();
     if value.is_empty() {
         return false;
     }
 
-    let Some(colon) = value.find(':') else {
+    let normalized: String = value
+        .chars()
+        .filter(|ch| !ch.is_ascii_whitespace() && !ch.is_ascii_control())
+        .collect();
+    let Some(colon) = normalized.find(':') else {
         return true;
     };
-    let first_delimiter = value.find(['/', '?', '#']).unwrap_or(usize::MAX);
+    let first_delimiter = normalized.find(['/', '?', '#']).unwrap_or(usize::MAX);
     if colon > first_delimiter {
         return true;
     }
 
     matches!(
-        value[..colon].to_ascii_lowercase().as_str(),
-        "http" | "https"
+        normalized[..colon].to_ascii_lowercase().as_str(),
+        "http" | "https" | "mailto" | "tel"
     )
 }
 
@@ -182,6 +223,19 @@ mod tests {
             ..FrontMatter::default()
         };
 
+        assert!(validate_frontmatter(&frontmatter, "test.md").is_err());
+    }
+
+    #[test]
+    fn rejects_dangerous_urls_in_structured_frontmatter() {
+        let mut frontmatter = FrontMatter {
+            canonical: Some("java\nscript:alert(1)".to_string()),
+            ..FrontMatter::default()
+        };
+        assert!(validate_frontmatter(&frontmatter, "test.md").is_err());
+
+        frontmatter.canonical = None;
+        frontmatter.redirect = Some("data:text/html,<script>alert(1)</script>".to_string());
         assert!(validate_frontmatter(&frontmatter, "test.md").is_err());
     }
 }

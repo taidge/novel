@@ -40,12 +40,12 @@
     {% endif %}
     {% endblock %}
     {% block json_ld %}
-    {% if site.site_url and not (page and page.frontmatter.noindex) %}
-    {% if page and page.frontmatter.layout == "home" %}
+    {% if site.site_url and page and not page.frontmatter.noindex %}
+    {% if page.frontmatter.layout == "home" %}
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":{{ site.title | json_encode | safe }},"description":{{ site.description | json_encode | safe }},"url":{{ site.site_url | json_encode | safe }}}</script>
-    {% elif page and (page.frontmatter.layout == "blog" or page.collection or page.published_at) %}
+    {% elif page.frontmatter.layout == "blog" or page.collection or page.published_at %}
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":{{ page.title | json_encode | safe }},"description":{{ page.description | json_encode | safe }},"url":{{ site.site_url ~ page.route.route_path | json_encode | safe }}{% if page.published_at %},"datePublished":{{ page.published_at | json_encode | safe }}{% endif %}{% if page.frontmatter.updated_at %},"dateModified":{{ page.frontmatter.updated_at | json_encode | safe }}{% elif page.git_updated_at %},"dateModified":{{ page.git_updated_at | json_encode | safe }}{% endif %}{% if page.frontmatter.og_image %},"image":{{ page.frontmatter.og_image | json_encode | safe }}{% endif %}{% if page.frontmatter.authors %},"author":[{% for a in page.frontmatter.authors %}{"@type":"Person","name":{{ a | json_encode | safe }}}{% if not loop.last %},{% endif %}{% endfor %}]{% endif %}}</script>
-    {% elif page %}
+    {% else %}
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"TechArticle","headline":{{ page.title | json_encode | safe }},"description":{{ page.description | json_encode | safe }},"url":{{ site.site_url ~ page.route.route_path | json_encode | safe }}{% if page.git_updated_at %},"dateModified":{{ page.git_updated_at | json_encode | safe }}{% endif %}}</script>
     {% endif %}
     {% endif %}

@@ -5,6 +5,7 @@ use novel_shared::SiteConfig;
 use salvo::prelude::*;
 use salvo::serve_static::StaticDir;
 use salvo::sse::{SseEvent, SseKeepAlive};
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, mpsc};
@@ -109,6 +110,7 @@ fn build_site(project_root: &Path) -> Result<novel_core::BuiltSite> {
 /// Run the development server with file watching and live reload
 pub async fn run_dev_server(project_root: &Path, host: &str, port: u16) -> Result<()> {
     let project_root = project_root.to_path_buf();
+    warn_if_public_bind(host);
 
     // Initial build
     let site = build_site(&project_root)?;
@@ -192,20 +194,21 @@ pub async fn run_dev_server(project_root: &Path, host: &str, port: u16) -> Resul
     });
 
     // Build router
+    let static_root = static_dir_source(&output_dir)?;
     let router = Router::new()
         .push(Router::with_path("__livereload").get(livereload_sse))
         .push(Router::with_path("__livereload.js").get(livereload_js))
         .push(
             Router::with_path("<**path>").get(
-                StaticDir::new([output_dir.to_str().unwrap_or("dist")])
+                StaticDir::new([static_root])
                     .defaults("index.html")
                     .auto_list(false),
             ),
         );
 
-    info!("Dev server running at http://{}:{}", host, port);
+    info!("Dev server running at {}", server_url(host, port));
 
-    let acceptor = TcpListener::new(format!("{host}:{port}")).bind().await;
+    let acceptor = TcpListener::new(bind_address(host, port)).bind().await;
     // `serve` blocks until the process is killed; `watcher` is owned by
     // this scope and only dropped on shutdown, which is what keeps it
     // alive throughout the server's lifetime.
@@ -327,18 +330,68 @@ fn project_relative_path(project_root: &Path, configured: Option<&str>) -> Optio
 
 /// Serve a static directory (for preview)
 pub async fn serve_static(dir: &Path, host: &str, port: u16) -> Result<()> {
+    warn_if_public_bind(host);
+    let static_root = static_dir_source(dir)?;
     let router = Router::with_path("<**path>").get(
-        StaticDir::new([dir.to_str().unwrap_or("dist")])
+        StaticDir::new([static_root])
             .defaults("index.html")
             .auto_list(false),
     );
 
-    info!("Preview server running at http://{}:{}", host, port);
+    info!("Preview server running at {}", server_url(host, port));
 
-    let acceptor = TcpListener::new(format!("{host}:{port}")).bind().await;
+    let acceptor = TcpListener::new(bind_address(host, port)).bind().await;
     Server::new(acceptor).serve(router).await;
 
     Ok(())
+}
+
+fn static_dir_source(dir: &Path) -> Result<String> {
+    dir.to_str().map(str::to_owned).ok_or_else(|| {
+        anyhow::anyhow!(
+            "Static server directory is not valid UTF-8 and cannot be served safely: {}",
+            dir.display()
+        )
+    })
+}
+
+fn host_is_loopback(host: &str) -> bool {
+    let host = host.trim();
+    if host.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+    let unbracketed = host
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+        .unwrap_or(host);
+    unbracketed
+        .parse::<IpAddr>()
+        .map(|address| address.is_loopback())
+        .unwrap_or(false)
+}
+
+fn warn_if_public_bind(host: &str) {
+    if !host_is_loopback(host) {
+        warn!(
+            "Security warning: binding to non-loopback host '{}' exposes the generated site to other machines; verify the output contains no secrets",
+            host
+        );
+    }
+}
+
+fn bind_address(host: &str, port: u16) -> String {
+    let host = host.trim();
+    if host.starts_with('[') && host.ends_with(']') {
+        format!("{host}:{port}")
+    } else if host.parse::<std::net::Ipv6Addr>().is_ok() {
+        format!("[{host}]:{port}")
+    } else {
+        format!("{host}:{port}")
+    }
+}
+
+fn server_url(host: &str, port: u16) -> String {
+    format!("http://{}", bind_address(host, port))
 }
 
 #[cfg(test)]
@@ -395,5 +448,23 @@ mod tests {
         assert!(paths.contains(&PathBuf::from("project/assets/site.css")));
         assert!(paths.contains(&PathBuf::from("project/assets/scss/main.scss")));
         assert!(paths.contains(&PathBuf::from("project/assets/scss")));
+    }
+
+    #[test]
+    fn loopback_detection_is_conservative() {
+        for host in ["127.0.0.1", "::1", "[::1]", "localhost", "LOCALHOST"] {
+            assert!(host_is_loopback(host), "{host}");
+        }
+        for host in ["0.0.0.0", "::", "192.168.1.10", "docs.example.com"] {
+            assert!(!host_is_loopback(host), "{host}");
+        }
+    }
+
+    #[test]
+    fn ipv6_bind_addresses_and_urls_are_bracketed() {
+        assert_eq!(bind_address("::1", 3000), "[::1]:3000");
+        assert_eq!(bind_address("[::1]", 3000), "[::1]:3000");
+        assert_eq!(server_url("::1", 3000), "http://[::1]:3000");
+        assert_eq!(bind_address("127.0.0.1", 3000), "127.0.0.1:3000");
     }
 }

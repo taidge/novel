@@ -51,13 +51,13 @@
             <section class="features">
                 <div class="features-grid">
                     {{#each page.frontmatter.features}}
-                    <div class="feature-card"{{#if this.url}} onclick="window.location='{{ this.url }}'" style="cursor:pointer"{{/if}}>
+                    {{#if this.url}}<a class="feature-card" href="{{ this.url }}">{{else}}<div class="feature-card">{{/if}}
                         {{#if this.icon}}
-                        <div class="feature-icon">{{{ this.icon }}}</div>
+                        <div class="feature-icon">{{ this.icon }}</div>
                         {{/if}}
                         <h3 class="feature-title">{{ this.title }}</h3>
                         <p class="feature-details">{{ this.details }}</p>
-                    </div>
+                    {{#if this.url}}</a>{{else}}</div>{{/if}}
                     {{/each}}
                 </div>
             </section>

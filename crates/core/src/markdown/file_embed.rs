@@ -1,6 +1,10 @@
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::path::Path;
+use std::sync::LazyLock;
+
+static FILE_EMBED_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"file="([^"]+)""#).expect("valid regex"));
 
 /// Information about a file embed directive
 #[derive(Debug)]
@@ -19,8 +23,7 @@ pub struct FileEmbed {
 /// - `file="<root>/src/file.rs"`
 /// - `file="path.rs#L10-L20"`
 pub fn parse_file_embed(info_string: &str) -> Option<FileEmbed> {
-    let re = Regex::new(r#"file="([^"]+)""#).ok()?;
-    let caps = re.captures(info_string)?;
+    let caps = FILE_EMBED_RE.captures(info_string)?;
     let raw_path = caps.get(1)?.as_str();
 
     // Check for line range suffix: #L10-L20 or #10-20

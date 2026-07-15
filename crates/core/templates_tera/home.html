@@ -32,13 +32,13 @@
     <section class="features">
         <div class="features-grid">
             {% for feature in page.frontmatter.features %}
-            <div class="feature-card"{% if feature.url %} onclick="window.location='{{ feature.url }}'" style="cursor:pointer"{% endif %}>
+            {% if feature.url %}<a class="feature-card" href="{{ feature.url }}">{% else %}<div class="feature-card">{% endif %}
                 {% if feature.icon %}
                 <div class="feature-icon">{{ feature.icon }}</div>
                 {% endif %}
                 <h3 class="feature-title">{{ feature.title }}</h3>
                 <p class="feature-details">{{ feature.details }}</p>
-            </div>
+            {% if feature.url %}</a>{% else %}</div>{% endif %}
             {% endfor %}
         </div>
     </section>

@@ -32,7 +32,6 @@ thiserror = { workspace = true }
 rayon = { workspace = true }
 slug = { workspace = true }
 regex = { workspace = true }
-once_cell = { workspace = true }
 globset = { workspace = true }
 rust-embed = { workspace = true }
 tera = { workspace = true, optional = true }

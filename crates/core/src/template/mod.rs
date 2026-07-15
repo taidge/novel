@@ -349,6 +349,7 @@ fn markdown_url(config: &SiteConfig, page: &PageData) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use novel_shared::PageData;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -421,5 +422,59 @@ mod tests {
 
         assert!(rendered.contains("CUSTOM_BASE"));
         assert!(rendered.contains("Page not found"));
+    }
+
+    fn home_page_with_feature(url: &str) -> PageData {
+        serde_json::from_value(serde_json::json!({
+            "route": {
+                "route_path": "/",
+                "absolute_path": "index.md",
+                "relative_path": "index.md",
+                "page_name": "index"
+            },
+            "title": "Home",
+            "description": "",
+            "content_html": "",
+            "toc": [],
+            "frontmatter": {
+                "layout": "home",
+                "features": [{
+                    "title": "Feature",
+                    "details": "Details",
+                    "icon": "<img src=x onerror=alert(1)>",
+                    "url": url
+                }]
+            }
+        }))
+        .expect("test page should deserialize")
+    }
+
+    fn assert_safe_alternate_feature_card(engine_name: &str) {
+        let config = SiteConfig {
+            template_engine: engine_name.to_string(),
+            ..SiteConfig::default()
+        };
+        let engine =
+            TemplateEngine::new(None, &[], &config).expect("template engine should initialize");
+        let page = home_page_with_feature("/guide/");
+        let rendered = engine
+            .render_home(&page, &config, &[])
+            .expect("home page should render");
+
+        assert!(rendered.contains(r#"<a class="feature-card" href=""#));
+        assert!(!rendered.contains("window.location"));
+        assert!(!rendered.contains("<img src=x"));
+    }
+
+    #[cfg(feature = "tera")]
+    #[test]
+    fn tera_feature_cards_do_not_inline_frontmatter_as_javascript_or_html() {
+        assert_safe_alternate_feature_card("tera");
+    }
+
+    #[cfg(feature = "handlebars")]
+    #[test]
+    fn handlebars_feature_cards_do_not_inline_frontmatter_as_javascript_or_html() {
+        assert_safe_alternate_feature_card("handlebars");
     }
 }
