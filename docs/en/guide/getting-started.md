@@ -9,8 +9,11 @@ Get up and running with Novel in minutes.
 
 ## Installation
 
+Novel requires Rust 1.94 or newer. The `novel-cli` name on crates.io belongs
+to a different project, so install this CLI from its GitHub repository:
+
 ```bash
-cargo install novel-cli
+cargo install --git https://github.com/taidge/novel --package novel-cli --locked
 ```
 
 ## Create a New Project
@@ -42,7 +45,11 @@ Start the dev server with live reload:
 novel dev
 ```
 
-Open `http://localhost:3000` in your browser. Changes to `.md`, `.json`, or `.toml` files trigger an automatic rebuild.
+Open `http://localhost:3000` in your browser. Changes to content, templates, CSS/Sass sources, config, data files, and common static assets trigger an automatic rebuild.
+
+The server binds to `127.0.0.1` by default. Binding `--host` to a
+non-loopback address exposes the generated site to other machines; Novel emits
+a security warning so you can verify the output contains no secrets.
 
 ## Build for Production
 

@@ -196,3 +196,61 @@ MiniJinja 已用普通 `<a href>` 渲染可点击 feature card，但 Tera 和 Ha
 - `cargo tree` 不再包含 Salvo 0.77、`yaml-rust`、`quick-xml 0.38`、
   `rustls-webpki 0.103.9` 或 `spin 0.9.8`
 - 工作区无未解释的未提交改动；每阶段形成独立 Git 提交
+
+## 8. 实施结果（2026-07-15）
+
+### 已完成
+
+- [x] 近期 7 条审计/修复分支全部合入本地 `main`。
+- [x] Salvo 升级到 `0.94.0`，关闭默认特性，仅保留 HTTP/1 server、静态文件和
+  SSE 所需能力。
+- [x] workspace 及全部 package 声明 `rust-version = "1.94"`，Rust 1.94.0
+  本地全特性检查通过。
+- [x] CI 增加 Rust 1.94 MSRV job 和 RustSec `audit-check@v2.0.0` 门禁。
+- [x] 8 个 `cargo audit` 漏洞、`anyhow` unsound advisory 和 yanked
+  `spin 0.9.8` 均已从锁文件移除。
+- [x] Syntect 关闭不需要的 YAML/plist loader，移除 `yaml-rust`、
+  `plist` 和有漏洞的 `quick-xml 0.38`。
+- [x] Markdown/Typst frontmatter 改为 fail-closed；错误 YAML、错误字段类型和
+  未闭合 Typst frontmatter 均带来源文件报错。
+- [x] 自定义 head 改为 `meta` / `link` / `title` 及标签专属属性
+  allowlist；结构化 frontmatter URL 拒绝危险 scheme。
+- [x] 数据目录遍历和 TOML/JSON 解析错误不再被静默吞掉。
+- [x] Tera/Handlebars feature card 不再拼接内联 JavaScript；Handlebars icon
+  不再使用未转义输出。
+- [x] 修复 Tera 子模板可能先于 `base.html` 注册而导致引擎无法启动的问题，
+  并保留完整的嵌套错误原因。
+- [x] `dev` / `preview` 对非 loopback 绑定输出安全警告，正确处理 IPv6，
+  非 UTF-8 静态目录不再回退到错误的 `dist`。
+- [x] Salvo 嵌入 API 改为返回 `Result`，写入失败不再被忽略；同进程多个站点
+  使用唯一临时目录。
+- [x] file embed 正则和 syntax/theme 初始化改用 `LazyLock`，移除直接
+  `once_cell` 依赖；Tokio 从 `full` 缩减为实际使用特性。
+- [x] README、部署文档和 `novel init` 脚手架改用 GitHub `--locked` 安装。
+
+### 审计中新增的重要发现
+
+crates.io 上的 `novel-cli 0.17.1` 属于另一个小说下载项目。因此
+`cargo install novel-cli` 会安装错误软件，而且本项目无法直接以同名 package
+发布。本轮已删除所有该安装指令并加入明确提示；若要发布到 crates.io，后续需要
+产品层决定新的 package 名称，二进制名仍可保持 `novel`。
+
+### 最终验证
+
+| 检查 | 最终结果 |
+| --- | --- |
+| Rust 1.94.0 `cargo check --locked --workspace --all-targets --all-features` | 通过 |
+| stable `cargo check --locked --workspace --all-targets --all-features` | 通过 |
+| `cargo fmt --all -- --check` | 通过 |
+| 全特性 Clippy `-D warnings` | 通过 |
+| 全特性测试 | CLI 10、core 76、shared 2、doctest 2 全部通过；2 个示例 doctest ignored |
+| `cargo run -p novel-cli -- check` | 通过 |
+| `cargo audit` | 0 vulnerability；1 个允许的信息性 warning |
+
+### 保留项
+
+- `syntect 5.3.0` 的预编译默认 syntax/theme 仍通过 `bincode 1.3.3`
+  加载。RUSTSEC-2025-0141 仅标记其停止维护，目前没有已知漏洞或可直接替换的
+  安全升级；`cargo audit` 保持该 warning 可见。
+- crates.io 发布需要先决定不冲突的新 package 名称，并按
+  `novel-shared -> novel-core -> CLI` 顺序建立发布链。本轮不擅自更名。

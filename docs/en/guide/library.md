@@ -166,6 +166,30 @@ async fn main() {
 The `BuiltSite` struct is `Send` but not `Sync` (due to the template engine). Wrap it in an `Arc<BuiltSite>` if you need shared access across handlers, or rebuild per-request for hot-reload scenarios.
 :::
 
+### Direct Salvo integration
+
+Enable the optional integration when Novel is hosted inside a Salvo
+application:
+
+```toml title="Cargo.toml"
+[dependencies]
+novel-core = { git = "https://github.com/taidge/novel", features = ["salvo"] }
+```
+
+```rust
+use novel_core::{DirNovel, Novel};
+use salvo::prelude::*;
+
+let docs = DirNovel::new("docs").build()?;
+let router = Router::new().push(
+    Router::with_path("docs").push(docs.into_salvo_router()?)
+);
+```
+
+`into_salvo_router` is fallible: errors while preparing the generated files
+are returned instead of creating a router that silently serves incomplete
+output.
+
 ## Workflow Comparison
 
 ::: tabs

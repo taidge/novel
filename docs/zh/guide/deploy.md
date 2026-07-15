@@ -52,11 +52,12 @@ netlify deploy --prod --dir dist
 ```
 
 ::: tip
-如果 Netlify 的构建环境上没有安装 Novel,请在构建脚本中先安装它:
+如果 Netlify 的构建环境上没有安装 Novel,请在构建脚本中先安装它。crates.io 上的
+`novel-cli` 名称属于另一个项目,因此请从本项目的 GitHub 仓库安装:
 
 ```toml title="netlify.toml"
 [build]
-  command = "cargo install novel-cli && novel build"
+  command = "cargo install --git https://github.com/taidge/novel --package novel-cli --locked && novel build"
   publish = "dist"
 ```
 :::
@@ -92,7 +93,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install Novel
-        run: cargo install novel-cli
+        run: cargo install --git https://github.com/taidge/novel --package novel-cli --locked
 
       - name: Build
         run: novel build
@@ -123,7 +124,7 @@ base = "/repo/"
 1. 将你的项目推送到一个 Git 仓库。
 2. 在 [Vercel](https://vercel.com) 上导入项目。
 3. 配置构建设置:
-   - **Build command**: `cargo install novel-cli && novel build`
+   - **Build command**: `cargo install --git https://github.com/taidge/novel --package novel-cli --locked && novel build`
    - **Output directory**: `dist`
 4. 部署。
 
@@ -140,7 +141,7 @@ cd dist && vercel --prod
 1. 登录 [Cloudflare 控制台](https://dash.cloudflare.com),进入 **Workers & Pages**。
 2. 点击 **Create application** > **Pages** > **Connect to Git**。
 3. 选择你的仓库并配置:
-   - **Build command**: `cargo install novel-cli && novel build`
+   - **Build command**: `cargo install --git https://github.com/taidge/novel --package novel-cli --locked && novel build`
    - **Build output directory**: `dist`
 4. 部署。
 
@@ -168,7 +169,7 @@ python -m http.server -d dist 8080
 FROM rust:latest AS builder
 WORKDIR /app
 COPY . .
-RUN cargo install novel-cli && novel build
+RUN cargo install --git https://github.com/taidge/novel --package novel-cli --locked && novel build
 
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html

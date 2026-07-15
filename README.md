@@ -18,8 +18,11 @@ Novel turns a folder of Markdown files into a polished documentation website in 
 
 ## Installation
 
+Novel requires Rust 1.94 or newer. The `novel-cli` name on crates.io belongs
+to a different project, so install this CLI from its GitHub repository:
+
 ```bash
-cargo install novel-cli
+cargo install --git https://github.com/taidge/novel --package novel-cli --locked
 ```
 
 ## Quick Start

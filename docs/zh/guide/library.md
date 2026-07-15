@@ -166,6 +166,28 @@ async fn main() {
 `BuiltSite` 结构体是 `Send` 但不是 `Sync`(由于模板引擎的限制)。如果你需要在多个处理器之间共享访问,请将它包装在 `Arc<BuiltSite>` 中,或者在热更新场景下按请求重新构建。
 :::
 
+### 直接集成 Salvo
+
+在 Salvo 应用中托管 Novel 时,请启用可选的集成功能:
+
+```toml title="Cargo.toml"
+[dependencies]
+novel-core = { git = "https://github.com/taidge/novel", features = ["salvo"] }
+```
+
+```rust
+use novel_core::{DirNovel, Novel};
+use salvo::prelude::*;
+
+let docs = DirNovel::new("docs").build()?;
+let router = Router::new().push(
+    Router::with_path("docs").push(docs.into_salvo_router()?)
+);
+```
+
+`into_salvo_router` 是可失败 API:准备生成文件时的错误会直接返回,不会创建一个
+静默提供不完整产物的 router。
+
 ## 工作流对比
 
 ::: tabs

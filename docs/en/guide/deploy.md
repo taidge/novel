@@ -52,11 +52,13 @@ Create a `netlify.toml` in your project root for persistent config:
 ```
 
 ::: tip
-If Novel is not installed on the Netlify build environment, add a build script that installs it first:
+If Novel is not installed on the Netlify build environment, add a build script
+that installs it first. The `novel-cli` name on crates.io belongs to a
+different project, so install this CLI from GitHub:
 
 ```toml title="netlify.toml"
 [build]
-  command = "cargo install novel-cli && novel build"
+  command = "cargo install --git https://github.com/taidge/novel --package novel-cli --locked && novel build"
   publish = "dist"
 ```
 :::
@@ -92,7 +94,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install Novel
-        run: cargo install novel-cli
+        run: cargo install --git https://github.com/taidge/novel --package novel-cli --locked
 
       - name: Build
         run: novel build
@@ -123,7 +125,7 @@ base = "/repo/"
 1. Push your project to a Git repository.
 2. Import the project on [Vercel](https://vercel.com).
 3. Configure the build settings:
-   - **Build command**: `cargo install novel-cli && novel build`
+   - **Build command**: `cargo install --git https://github.com/taidge/novel --package novel-cli --locked && novel build`
    - **Output directory**: `dist`
 4. Deploy.
 
@@ -140,7 +142,7 @@ cd dist && vercel --prod
 1. Log in to the [Cloudflare dashboard](https://dash.cloudflare.com) and go to **Workers & Pages**.
 2. Click **Create application** > **Pages** > **Connect to Git**.
 3. Select your repository and configure:
-   - **Build command**: `cargo install novel-cli && novel build`
+   - **Build command**: `cargo install --git https://github.com/taidge/novel --package novel-cli --locked && novel build`
    - **Build output directory**: `dist`
 4. Deploy.
 
@@ -168,7 +170,7 @@ Serve the built site with a lightweight Nginx container:
 FROM rust:latest AS builder
 WORKDIR /app
 COPY . .
-RUN cargo install novel-cli && novel build
+RUN cargo install --git https://github.com/taidge/novel --package novel-cli --locked && novel build
 
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html

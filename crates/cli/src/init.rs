@@ -74,7 +74,7 @@ Welcome to your new documentation site!
 ## Installation
 
 ```bash
-cargo install novel-cli
+cargo install --git https://github.com/taidge/novel --package novel-cli --locked
 ```
 
 ## Quick Start
@@ -181,5 +181,44 @@ fn validate_project_name(name: &str) -> Result<&str> {
     match (components.next(), components.next()) {
         (Some(Component::Normal(_)), None) => Ok(name),
         _ => anyhow::bail!("Project name must be a single directory name, not a path: {name}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{create_project, validate_project_name};
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_dir() -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("novel-init-test-{}-{unique}", std::process::id()))
+    }
+
+    #[test]
+    fn project_names_cannot_escape_the_parent() {
+        for name in ["", ".", "..", "../site", "nested/site"] {
+            assert!(validate_project_name(name).is_err(), "{name}");
+        }
+        assert_eq!(validate_project_name("my-docs").unwrap(), "my-docs");
+    }
+
+    #[test]
+    fn scaffold_uses_the_project_git_install_command() {
+        let root = temp_dir();
+        fs::create_dir_all(&root).expect("failed to create test root");
+        create_project(&root, "site").expect("project scaffold should succeed");
+
+        let guide = fs::read_to_string(root.join("site/docs/guide/getting-started.md"))
+            .expect("generated guide should exist");
+        assert!(guide.contains(
+            "cargo install --git https://github.com/taidge/novel --package novel-cli --locked"
+        ));
+
+        let _ = fs::remove_dir_all(root);
     }
 }

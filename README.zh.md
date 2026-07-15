@@ -18,8 +18,11 @@ Novel 能够在毫秒级时间内将一个 Markdown 文件夹转换为精美的�
 
 ## 安装
 
+Novel 要求 Rust 1.94 或更高版本。crates.io 上的 `novel-cli` 名称属于另一个项目,
+因此请从本项目的 GitHub 仓库安装 CLI:
+
 ```bash
-cargo install novel-cli
+cargo install --git https://github.com/taidge/novel --package novel-cli --locked
 ```
 
 ## 快速开始

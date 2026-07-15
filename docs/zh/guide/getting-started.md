@@ -9,8 +9,11 @@ description: 安装 Novel、创建项目并构建你的第一个文档站点。
 
 ## 安装
 
+Novel 要求 Rust 1.94 或更高版本。crates.io 上的 `novel-cli` 名称属于另一个项目,
+因此请从本项目的 GitHub 仓库安装 CLI:
+
 ```bash
-cargo install novel-cli
+cargo install --git https://github.com/taidge/novel --package novel-cli --locked
 ```
 
 ## 创建新项目
@@ -42,7 +45,10 @@ my-docs/
 novel dev
 ```
 
-在浏览器中打开 `http://localhost:3000`。对 `.md`、`.json` 或 `.toml` 文件的修改会自动触发重新构建。
+在浏览器中打开 `http://localhost:3000`。修改内容、模板、CSS/Sass 源文件、配置、数据文件以及常见静态资源都会触发自动重建。
+
+服务器默认绑定 `127.0.0.1`。通过 `--host` 绑定非 loopback 地址会把生成的站点
+暴露给其他机器;Novel 会输出安全警告,以便你确认产物中不含敏感信息。
 
 ## 生产构建
 
