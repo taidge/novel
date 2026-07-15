@@ -18,7 +18,11 @@ pub fn load_data(docs_root: &Path) -> NovelResult<Value> {
     }
 
     let mut root = Map::new();
-    for entry in WalkDir::new(&data_dir).into_iter().filter_map(|e| e.ok()) {
+    for entry in WalkDir::new(&data_dir) {
+        let entry = entry.map_err(|error| NovelError::Data {
+            file: data_dir.display().to_string(),
+            message: error.to_string(),
+        })?;
         if !entry.file_type().is_file() {
             continue;
         }
@@ -76,5 +80,48 @@ fn insert_nested(map: &mut Map<String, Value>, keys: &[String], value: Value) {
         .or_insert_with(|| Value::Object(Map::new()));
     if let Value::Object(inner) = entry {
         insert_nested(inner, &keys[1..], value);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::load_data;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TestDocs {
+        root: PathBuf,
+    }
+
+    impl TestDocs {
+        fn new() -> Self {
+            let unique = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock should be after unix epoch")
+                .as_nanos();
+            let root = std::env::temp_dir()
+                .join(format!("novel-data-test-{}-{unique}", std::process::id()));
+            fs::create_dir_all(root.join("data")).expect("failed to create test data directory");
+            Self { root }
+        }
+    }
+
+    impl Drop for TestDocs {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.root);
+        }
+    }
+
+    #[test]
+    fn malformed_data_file_returns_its_path() {
+        let docs = TestDocs::new();
+        let file = docs.root.join("data").join("broken.toml");
+        fs::write(&file, "value = [unterminated").expect("failed to write invalid test data");
+
+        let error = load_data(&docs.root).unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("broken.toml"));
+        assert!(message.contains("Data file"));
     }
 }

@@ -97,20 +97,21 @@ head:
     attrs:
       property: og:title
       content: 我的页面标题
-  - tag: script
-    attrs:
-      src: https://example.com/analytics.js
-      async: ""
   - tag: link
     attrs:
       rel: canonical
       href: https://example.com/page
+  - tag: title
+    content: 自定义浏览器标题
 ---
 ```
 
-`head` 数组中的每一项需要:
-- `tag` —— HTML 标签名
-- `attrs` —— 属性的键值映射
-- `content` —— 可选的内部文本内容
+为提供安全的默认行为,自定义 head 项只允许 `meta`、`link` 和
+`title`,并按标签限制可用属性。构建时会拒绝 `script`、`style`、
+`base`、`meta http-equiv`、事件处理属性和危险 URL scheme 等可执行或改变
+导航的配置。如果站点确实需要分析脚本或其他脚本,请在受信任的自定义模板中添加。
 
-Novel 会在渲染前校验标签名和属性名。标签名必须是简单的 HTML 标识符,属性名必须是标识符或 `data-*` 属性,并且会拒绝 `onload` 这类事件处理属性。属性值和内容仍然属于受信任作者输入:不要把来自不可信用户或未审查第三方内容的 custom head 标签直接用于站点。
+::: warning 受信任输入边界
+Markdown 原始 HTML、自定义模板、主题包和自定义 CSS 会被当作受信任的项目代码,
+不会经过净化处理。不要直接构建来自不受信任贡献者且未经审核的内容。
+:::

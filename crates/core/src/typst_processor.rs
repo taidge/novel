@@ -8,7 +8,6 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::LazyLock;
 
-use crate::dates::validate_frontmatter_dates;
 use crate::frontmatter::validate_frontmatter;
 
 // Compile-time regex constants used by the helpers below. Declared here so
@@ -50,10 +49,8 @@ impl TypstProcessor {
     /// Process a `.typ` file into [`PageData`].
     pub fn process_file(&self, raw_content: &str, route: RouteMeta) -> Result<PageData> {
         // 1. Extract YAML frontmatter from leading `//` comments
-        let (frontmatter, _body) = parse_typst_frontmatter(raw_content);
-        validate_frontmatter_dates(&frontmatter, &route.relative_path)?;
+        let (frontmatter, _body) = parse_typst_frontmatter(raw_content, &route.relative_path)?;
         validate_frontmatter(&frontmatter, &route.relative_path)?;
-        validate_frontmatter_dates(&frontmatter, &route.relative_path)?;
 
         // 2. Compile to HTML via the `typst` CLI
         let abs_path = self.docs_root.join(&route.relative_path);
@@ -114,16 +111,17 @@ impl TypstProcessor {
 /// = Heading
 /// Some content…
 /// ```
-fn parse_typst_frontmatter(content: &str) -> (FrontMatter, String) {
+fn parse_typst_frontmatter(content: &str, source: &str) -> Result<(FrontMatter, String)> {
     let mut yaml_lines: Vec<&str> = Vec::new();
     let mut in_frontmatter = false;
     let mut found_end = false;
     let mut body_byte_offset: usize = 0;
 
-    for line in content.lines() {
+    for segment in content.split_inclusive('\n') {
+        let line = segment.strip_suffix('\n').unwrap_or(segment);
+        let line = line.strip_suffix('\r').unwrap_or(line);
         let trimmed = line.trim();
-        // Track byte position (line + newline char)
-        let line_len = line.len() + 1; // approximate; handles \n
+        let line_len = segment.len();
 
         if !in_frontmatter {
             if trimmed == "// ---" {
@@ -154,8 +152,11 @@ fn parse_typst_frontmatter(content: &str) -> (FrontMatter, String) {
         }
     }
 
-    if !found_end || yaml_lines.is_empty() {
-        return (FrontMatter::default(), content.to_string());
+    if in_frontmatter && !found_end {
+        anyhow::bail!("Unclosed Typst frontmatter in {source}: expected a closing `// ---`");
+    }
+    if !in_frontmatter {
+        return Ok((FrontMatter::default(), content.to_string()));
     }
 
     // Build a synthetic markdown-style frontmatter string so we can reuse
@@ -164,12 +165,14 @@ fn parse_typst_frontmatter(content: &str) -> (FrontMatter, String) {
     let synthetic = format!("---\n{}\n---\n", yaml_content);
 
     let matter = Matter::<YAML>::new();
-    let frontmatter = match matter.parse(&synthetic) {
-        Ok(parsed) => parsed
-            .data
-            .and_then(|d: gray_matter::Pod| d.deserialize().ok())
-            .unwrap_or_default(),
-        Err(_) => FrontMatter::default(),
+    let parsed = matter
+        .parse::<gray_matter::Pod>(&synthetic)
+        .map_err(|error| anyhow::anyhow!("Invalid Typst YAML frontmatter in {source}: {error}"))?;
+    let frontmatter: FrontMatter = match parsed.data {
+        Some(data) => data.deserialize().map_err(|error| {
+            anyhow::anyhow!("Invalid Typst frontmatter fields in {source}: {error}")
+        })?,
+        None => FrontMatter::default(),
     };
 
     let body = if body_byte_offset < content.len() {
@@ -178,7 +181,7 @@ fn parse_typst_frontmatter(content: &str) -> (FrontMatter, String) {
         String::new()
     };
 
-    (frontmatter, body)
+    Ok((frontmatter, body))
 }
 
 // ---------------------------------------------------------------------------
@@ -303,7 +306,7 @@ mod tests {
     #[test]
     fn test_parse_typst_frontmatter() {
         let content = "// ---\n// title: Hello\n// description: World\n// ---\n\n= Heading\n";
-        let (fm, body) = parse_typst_frontmatter(content);
+        let (fm, body) = parse_typst_frontmatter(content, "test.typ").unwrap();
         assert_eq!(fm.title.as_deref(), Some("Hello"));
         assert_eq!(fm.description.as_deref(), Some("World"));
         assert!(body.contains("= Heading"));
@@ -312,9 +315,22 @@ mod tests {
     #[test]
     fn test_parse_typst_frontmatter_missing() {
         let content = "= Just a heading\nSome text.\n";
-        let (fm, body) = parse_typst_frontmatter(content);
+        let (fm, body) = parse_typst_frontmatter(content, "test.typ").unwrap();
         assert!(fm.title.is_none());
         assert_eq!(body, content);
+    }
+
+    #[test]
+    fn test_parse_typst_frontmatter_fails_closed() {
+        let malformed = "// ---\n// title: [unterminated\n// ---\n= Heading\n";
+        assert!(parse_typst_frontmatter(malformed, "bad.typ").is_err());
+
+        let wrong_type = "// ---\n// draft: [not, boolean]\n// ---\n= Heading\n";
+        assert!(parse_typst_frontmatter(wrong_type, "bad.typ").is_err());
+
+        let unclosed = "// ---\n// draft: true\n= Heading\n";
+        let error = parse_typst_frontmatter(unclosed, "bad.typ").unwrap_err();
+        assert!(error.to_string().contains("Unclosed Typst frontmatter"));
     }
 
     #[test]

@@ -137,8 +137,7 @@ impl TemplateEngine {
                 let docs_root = config
                     .docs_root_checked(root)
                     .map_err(|e| NovelError::Config(e.to_string()))?;
-                crate::data::load_data(&docs_root)
-                    .unwrap_or_else(|_| serde_json::Value::Object(Default::default()))
+                crate::data::load_data(&docs_root)?
             }
             None => serde_json::Value::Object(Default::default()),
         };

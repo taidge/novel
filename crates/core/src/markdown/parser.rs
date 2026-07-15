@@ -12,7 +12,6 @@ use std::sync::LazyLock;
 use super::container::preprocess_containers;
 use super::file_embed::{parse_file_embed, read_embedded_file};
 use super::highlight::highlight_code;
-use crate::dates::validate_frontmatter_dates;
 use crate::frontmatter::validate_frontmatter;
 use crate::plugin::ContainerDirective;
 use crate::util::html_escape;
@@ -108,19 +107,18 @@ impl MarkdownProcessor {
     ) -> Result<PageData> {
         // 1. Parse frontmatter
         let matter = Matter::<YAML>::new();
-        let (frontmatter, markdown_body) = match matter.parse(raw_content) {
-            Ok(parsed) => {
-                let fm: FrontMatter = parsed
-                    .data
-                    .and_then(|d: gray_matter::Pod| d.deserialize().ok())
-                    .unwrap_or_default();
-                (fm, parsed.content)
-            }
-            Err(_) => (FrontMatter::default(), raw_content.to_string()),
+        let source = file_path.display().to_string();
+        let parsed = matter
+            .parse::<gray_matter::Pod>(raw_content)
+            .map_err(|error| anyhow::anyhow!("Invalid YAML frontmatter in {source}: {error}"))?;
+        let frontmatter: FrontMatter = match parsed.data {
+            Some(data) => data.deserialize().map_err(|error| {
+                anyhow::anyhow!("Invalid frontmatter fields in {source}: {error}")
+            })?,
+            None => FrontMatter::default(),
         };
-        validate_frontmatter_dates(&frontmatter, &file_path.display().to_string())?;
-        validate_frontmatter(&frontmatter, &file_path.display().to_string())?;
-        validate_frontmatter_dates(&frontmatter, &file_path.display().to_string())?;
+        let markdown_body = parsed.content;
+        validate_frontmatter(&frontmatter, &source)?;
 
         // 2a. Extract summary from <!-- more --> separator (if present)
         let (summary_md, body_for_processing) = if !self.summary_separator.is_empty()
@@ -665,5 +663,35 @@ mod tests {
             .unwrap_err();
 
         assert!(err.to_string().contains("Invalid frontmatter date"));
+    }
+
+    #[test]
+    fn malformed_frontmatter_fails_closed() {
+        let err = MarkdownProcessor::new(None)
+            .process_string(
+                "---\ntitle: [unterminated\n---\n# Secret\n",
+                Path::new("secret.md"),
+                route(),
+            )
+            .unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains("Invalid YAML frontmatter"));
+        assert!(message.contains("secret.md"));
+    }
+
+    #[test]
+    fn invalid_frontmatter_field_types_fail_closed() {
+        let err = MarkdownProcessor::new(None)
+            .process_string(
+                "---\ndraft: [not, a, boolean]\n---\n# Secret\n",
+                Path::new("secret.md"),
+                route(),
+            )
+            .unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains("Invalid frontmatter fields"));
+        assert!(message.contains("secret.md"));
     }
 }

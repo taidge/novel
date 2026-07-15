@@ -97,20 +97,24 @@ head:
     attrs:
       property: og:title
       content: My Page Title
-  - tag: script
-    attrs:
-      src: https://example.com/analytics.js
-      async: ""
   - tag: link
     attrs:
       rel: canonical
       href: https://example.com/page
+  - tag: title
+    content: My custom browser title
 ---
 ```
 
-Each entry in the `head` array requires:
-- `tag` — the HTML tag name
-- `attrs` — key-value map of attributes
-- `content` — optional inner text content
+For safe defaults, custom head entries are limited to `meta`, `link`, and
+`title` with tag-specific attributes. Executable or navigation-changing
+entries such as `script`, `style`, `base`, `meta http-equiv`, event
+handlers, and dangerous URL schemes are rejected during the build. Add a
+trusted custom template when a site intentionally needs analytics or another
+script.
 
-Novel validates tag and attribute names before rendering them. Tag names must be simple HTML identifiers, attribute names must be identifiers or `data-*` attributes, and event-handler attributes such as `onload` are rejected. Attribute values and content are still trusted author input: do not use custom head tags from untrusted users or unreviewed third-party content.
+::: warning Trusted input boundary
+Raw HTML in Markdown, custom templates, theme packs, and custom CSS are treated
+as trusted project code and are not sanitized. Do not build unreviewed content
+from untrusted contributors.
+:::
