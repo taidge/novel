@@ -17,6 +17,7 @@ pub(crate) mod build_summary;
 pub(crate) mod builder;
 pub(crate) mod content;
 pub(crate) mod dates;
+pub(crate) mod frontmatter;
 pub(crate) mod fs_retry;
 pub(crate) mod pagination;
 pub(crate) mod post_process;

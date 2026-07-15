@@ -9,6 +9,7 @@ use std::process::Command;
 use std::sync::LazyLock;
 
 use crate::dates::validate_frontmatter_dates;
+use crate::frontmatter::validate_frontmatter;
 
 // Compile-time regex constants used by the helpers below. Declared here so
 // they're built exactly once per process instead of once per .typ file.
@@ -50,6 +51,8 @@ impl TypstProcessor {
     pub fn process_file(&self, raw_content: &str, route: RouteMeta) -> Result<PageData> {
         // 1. Extract YAML frontmatter from leading `//` comments
         let (frontmatter, _body) = parse_typst_frontmatter(raw_content);
+        validate_frontmatter_dates(&frontmatter, &route.relative_path)?;
+        validate_frontmatter(&frontmatter, &route.relative_path)?;
         validate_frontmatter_dates(&frontmatter, &route.relative_path)?;
 
         // 2. Compile to HTML via the `typst` CLI

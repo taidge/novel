@@ -13,6 +13,7 @@ use super::container::preprocess_containers;
 use super::file_embed::{parse_file_embed, read_embedded_file};
 use super::highlight::highlight_code;
 use crate::dates::validate_frontmatter_dates;
+use crate::frontmatter::validate_frontmatter;
 use crate::plugin::ContainerDirective;
 use crate::util::html_escape;
 
@@ -117,6 +118,8 @@ impl MarkdownProcessor {
             }
             Err(_) => (FrontMatter::default(), raw_content.to_string()),
         };
+        validate_frontmatter_dates(&frontmatter, &file_path.display().to_string())?;
+        validate_frontmatter(&frontmatter, &file_path.display().to_string())?;
         validate_frontmatter_dates(&frontmatter, &file_path.display().to_string())?;
 
         // 2a. Extract summary from <!-- more --> separator (if present)

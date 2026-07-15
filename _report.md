@@ -86,8 +86,8 @@ PR 状态：基础修复已提交到 draft PR #9 `Fix static site security bound
 - [x] 安全项：home feature card 内联 JS 字符串注入面  
   已改为普通 `<a href>` 渲染，不再把 frontmatter URL 写入 inline JS 字符串。
 
-- [ ] 安全项：trusted content/config 边界文档化与 head tag/attr allowlist  
-  未完成。
+- [x] 安全项：trusted content/config 边界文档化与 head tag/attr allowlist
+  已在独立 PR 中修复：Markdown/Typst frontmatter 会校验 custom head 的 tag/attr 名并拒绝事件处理属性；frontmatter 文档明确 custom head 属性值和内容属于 trusted author input。
 
 - [x] CI 项：把 all-features test/clippy、`novel check`、package 验证加入 CI
   已在独立 PR 中修复：CI 使用 all-features build/test/clippy，docs workflow 同时执行 `novel build` 与 `novel check`，并加入当前可验证的 `cargo package -p novel-shared --allow-dirty`。`novel-core`/`novel-cli` package 硬门禁仍随 5.1 发布顺序问题处理。
