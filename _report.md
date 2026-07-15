@@ -89,8 +89,8 @@ PR 状态：基础修复已提交到 draft PR #9 `Fix static site security bound
 - [ ] 安全项：trusted content/config 边界文档化与 head tag/attr allowlist  
   未完成。
 
-- [ ] CI 项：把 all-features test/clippy、`novel check`、package 验证加入 CI  
-  未完成。本次已本地验证，但未修改 CI。
+- [x] CI 项：把 all-features test/clippy、`novel check`、package 验证加入 CI
+  已在独立 PR 中修复：CI 使用 all-features build/test/clippy，docs workflow 同时执行 `novel build` 与 `novel check`，并加入当前可验证的 `cargo package -p novel-shared --allow-dirty`。`novel-core`/`novel-cli` package 硬门禁仍随 5.1 发布顺序问题处理。
 
 ## 4. 本次已完成改进
 
