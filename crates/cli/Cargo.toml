@@ -2,6 +2,7 @@
 name = "novel-cli"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = "Command-line interface for the Novel static documentation site generator."
 license.workspace = true
 repository.workspace = true

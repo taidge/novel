@@ -2,6 +2,7 @@
 name = "novel-core"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = "Core static site generation engine for Novel."
 license.workspace = true
 repository.workspace = true
