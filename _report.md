@@ -77,8 +77,8 @@ PR 状态：基础修复已提交到 draft PR #9 `Fix static site security bound
 - [x] 6.5 Markdown heading ID 去重  
   已按页面维护 slug counter，重复标题生成 `intro`、`intro-2` 等唯一 id，并新增测试。
 
-- [ ] 6.6 日期字段真实解析与校验  
-  未完成。
+- [x] 6.6 日期字段真实解析与校验
+  已在独立 PR 中修复：Markdown 与 Typst frontmatter 共用日期校验逻辑，`published_at`、`updated_at`、`expires_at` 只接受有效 `YYYY-MM-DD` 或 RFC3339；非法日期会在页面处理阶段失败。
 
 - [x] 6.7 `check_dead_links` 与静态资产存在性检查语义统一
   已在独立 PR 中修复：Markdown `href`/`src` 内部引用都会被收集；路由引用按页面路由表检查，静态资产引用按公开 assets 集合检查；CLI `novel check` 会报告缺失静态资产，`markdown.check_dead_links = true` 的 build 会在缺失路由或资产时失败。

@@ -12,6 +12,7 @@ use std::sync::LazyLock;
 use super::container::preprocess_containers;
 use super::file_embed::{parse_file_embed, read_embedded_file};
 use super::highlight::highlight_code;
+use crate::dates::validate_frontmatter_dates;
 use crate::plugin::ContainerDirective;
 use crate::util::html_escape;
 
@@ -116,6 +117,7 @@ impl MarkdownProcessor {
             }
             Err(_) => (FrontMatter::default(), raw_content.to_string()),
         };
+        validate_frontmatter_dates(&frontmatter, &file_path.display().to_string())?;
 
         // 2a. Extract summary from <!-- more --> separator (if present)
         let (summary_md, body_for_processing) = if !self.summary_separator.is_empty()
@@ -647,5 +649,18 @@ mod tests {
             page.summary_html.as_deref(),
             Some("<h1>Page</h1>\n<p>Lead paragraph.</p>\n")
         );
+    }
+
+    #[test]
+    fn invalid_frontmatter_dates_fail_processing() {
+        let err = MarkdownProcessor::new(None)
+            .process_string(
+                "---\ntitle: Bad Date\npublished_at: 2026-02-29\n---\n# Bad\n",
+                Path::new("test.md"),
+                route(),
+            )
+            .unwrap_err();
+
+        assert!(err.to_string().contains("Invalid frontmatter date"));
     }
 }
