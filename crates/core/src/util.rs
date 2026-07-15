@@ -109,6 +109,34 @@ pub(crate) fn join_site_url(site_url: &str, base: &str, path: &str) -> String {
     }
 }
 
+pub(crate) fn is_public_static_asset(file_path: &str) -> bool {
+    let path = Path::new(file_path);
+    if file_path.ends_with(".md") || file_path.ends_with(".typ") {
+        return false;
+    }
+
+    if path
+        .components()
+        .next()
+        .and_then(|component| component.as_os_str().to_str())
+        == Some("data")
+    {
+        return false;
+    }
+
+    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    if file_name == "_collection.toml" || file_name == "_meta.json" {
+        return false;
+    }
+
+    let ext = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
+    if file_name.starts_with('_') && matches!(ext, "json" | "toml" | "yaml" | "yml") {
+        return false;
+    }
+
+    true
+}
+
 /// Join a caller-provided relative path to `base` without allowing it to
 /// escape `base`.
 pub(crate) fn safe_join_relative(

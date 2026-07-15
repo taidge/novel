@@ -1536,7 +1536,7 @@ window.location.replace(basePath.replace(/\/?$/, '/') + (match || defaultLocale)
     /// Copy non-content, non-meta static assets from the docs source.
     fn copy_static_assets(&self, output_dir: &Path) -> Result<()> {
         for file_path in self.source.list_files() {
-            if !is_public_static_asset(&file_path) {
+            if !util::is_public_static_asset(&file_path) {
                 continue;
             }
 
@@ -1551,40 +1551,13 @@ window.location.replace(basePath.replace(/\/?$/, '/') + (match || defaultLocale)
     }
 }
 
-fn is_public_static_asset(file_path: &str) -> bool {
-    let path = Path::new(file_path);
-    if file_path.ends_with(".md") || file_path.ends_with(".typ") {
-        return false;
-    }
-
-    if path
-        .components()
-        .next()
-        .and_then(|component| component.as_os_str().to_str())
-        == Some("data")
-    {
-        return false;
-    }
-
-    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-    if file_name == "_collection.toml" || file_name == "_meta.json" {
-        return false;
-    }
-
-    let ext = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
-    if file_name.starts_with('_') && matches!(ext, "json" | "toml" | "yaml" | "yml") {
-        return false;
-    }
-
-    true
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
-        is_public_static_asset, prefix_internal_path, prefix_version_path,
-        rewrite_base_links_in_html, rewrite_locale_links_in_html, version_route_prefix,
+        prefix_internal_path, prefix_version_path, rewrite_base_links_in_html,
+        rewrite_locale_links_in_html, version_route_prefix,
     };
+    use crate::util::is_public_static_asset;
 
     fn locales() -> Vec<String> {
         vec!["en".to_string(), "zh".to_string()]
